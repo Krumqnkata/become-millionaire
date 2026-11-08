@@ -179,11 +179,7 @@ function hallOfFameForm(ctx: AppContext, game: Game, prize: number): HTMLElement
           date: new Date().toISOString(),
         });
         form.replaceChildren(
-          h(
-            'p',
-            { class: 'fame-form__done' },
-            `🏆 Записан си на ${rank + 1}-во място в Залата на славата!`,
-          ),
+          h('p', { class: 'fame-form__done' }, `🏆 Имаш ${rank + 1}-во място в Залата на славата!`),
           h(
             'button',
             { type: 'button', class: 'btn btn--ghost btn--sm', onClick: () => ctx.go.hallOfFame() },

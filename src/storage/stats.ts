@@ -42,6 +42,8 @@ export interface Settings {
   voice: boolean;
   /** The host also reads every question and its answers. */
   readQuestions: boolean;
+  /** Name of the speech synthesis voice chosen for the host; empty = automatic. */
+  voiceName: string;
   volume: number;
   confirmFinalAnswer: boolean;
   lastMode: ModeId;
@@ -54,6 +56,7 @@ const DEFAULT_SETTINGS: Settings = {
   music: true,
   voice: true,
   readQuestions: true,
+  voiceName: '',
   volume: 0.8,
   confirmFinalAnswer: true,
   lastMode: 'normal',
@@ -70,6 +73,7 @@ export function loadSettings(): Settings {
     music: bool(stored.music, DEFAULT_SETTINGS.music),
     voice: bool(stored.voice, DEFAULT_SETTINGS.voice),
     readQuestions: bool(stored.readQuestions, DEFAULT_SETTINGS.readQuestions),
+    voiceName: typeof stored.voiceName === 'string' ? stored.voiceName : '',
     volume:
       typeof stored.volume === 'number' && stored.volume >= 0 && stored.volume <= 1
         ? stored.volume

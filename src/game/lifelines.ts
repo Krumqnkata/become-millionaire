@@ -108,6 +108,8 @@ export interface Friend {
   name: string;
   role: string;
   avatar: string;
+  /** Used to pick a matching voice for the phone call. */
+  gender: 'male' | 'female';
   /** Category ids the friend is great at. */
   expertise: string[];
 }
@@ -115,20 +117,40 @@ export interface Friend {
 export const FRIENDS: Friend[] = [
   {
     name: 'Баба Мария',
+    gender: 'female',
     role: 'пенсионирана учителка по история',
     avatar: '👵',
     expertise: ['history', 'bulgaria', 'food'],
   },
-  { name: 'Деси', role: 'студентка по медицина', avatar: '👩‍⚕️', expertise: ['science', 'animals'] },
+  {
+    name: 'Деси',
+    gender: 'female',
+    role: 'студентка по медицина',
+    avatar: '👩‍⚕️',
+    expertise: ['science', 'animals'],
+  },
   {
     name: 'Чичо Петър',
+    gender: 'male',
     role: 'таксиметров шофьор, обиколил света',
     avatar: '🚕',
     expertise: ['geography', 'general'],
   },
-  { name: 'Мартин', role: 'треньор по футбол', avatar: '⚽', expertise: ['sport'] },
-  { name: 'Кали', role: 'библиотекарка', avatar: '📚', expertise: ['art', 'language', 'myth'] },
-  { name: 'Иво', role: 'програмист и киноман', avatar: '🎬', expertise: ['entertainment', 'tech'] },
+  { name: 'Мартин', gender: 'male', role: 'треньор по футбол', avatar: '⚽', expertise: ['sport'] },
+  {
+    name: 'Кали',
+    gender: 'female',
+    role: 'библиотекарка',
+    avatar: '📚',
+    expertise: ['art', 'language', 'myth'],
+  },
+  {
+    name: 'Иво',
+    gender: 'male',
+    role: 'програмист и киноман',
+    avatar: '🎬',
+    expertise: ['entertainment', 'tech'],
+  },
 ];
 
 const FRIEND_ACCURACY: Record<Difficulty, number> = { 1: 0.95, 2: 0.86, 3: 0.72, 4: 0.58, 5: 0.45 };
@@ -143,10 +165,17 @@ export interface PhoneResult {
   message: string;
 }
 
-function friendMessage(letter: string, confidence: number, isExpert: boolean): string {
+function friendMessage(
+  letter: string,
+  confidence: number,
+  isExpert: boolean,
+  gender: Friend['gender'],
+): string {
   const intro = isExpert ? 'О, това ми е любимата тема! ' : '';
-  if (confidence >= 85) return `${intro}Сигурен съм на 100% – отговорът е ${letter}.`;
-  if (confidence >= 65) return `${intro}Почти съм сигурен, че е ${letter}.`;
+  const sure = gender === 'female' ? 'сигурна' : 'сигурен';
+  if (confidence >= 85)
+    return `${intro}${sure[0]!.toUpperCase()}${sure.slice(1)} съм на 100% – отговорът е ${letter}.`;
+  if (confidence >= 65) return `${intro}Почти съм ${sure}, че е ${letter}.`;
   if (confidence >= 45) return `${intro}Мисля, че е ${letter}, но не залагай къщата.`;
   return `Ох, тук нямам идея… Ако трябва да избирам – ${letter}. Но наистина гадая.`;
 }
@@ -177,6 +206,6 @@ export function phoneFriend(
     answer,
     confidence,
     isExpert,
-    message: friendMessage(ANSWER_LETTERS[answer], confidence, isExpert),
+    message: friendMessage(ANSWER_LETTERS[answer], confidence, isExpert, friend.gender),
   };
 }

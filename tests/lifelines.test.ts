@@ -66,6 +66,19 @@ describe('phoneFriend', () => {
     return right / RUNS;
   };
 
+  it('speaks with the right grammatical gender', () => {
+    const female = FRIENDS.find((f) => f.gender === 'female')!;
+    const male = FRIENDS.find((f) => f.gender === 'male')!;
+    const messages = (f: typeof female) =>
+      Array.from(
+        { length: 300 },
+        (_, i) => phoneFriend(0, 1, 'none', ALL, createRng(i), f).message,
+      );
+    expect(messages(female).some((m) => /сигурна/i.test(m))).toBe(true);
+    expect(messages(female).some((m) => /сигурен/i.test(m))).toBe(false);
+    expect(messages(male).some((m) => /сигурна/i.test(m))).toBe(false);
+  });
+
   it('answers within the available options and talks like a person', () => {
     const call = phoneFriend(3, 4, 'history', [0, 3], createRng(1), friend);
     expect([0, 3]).toContain(call.answer);

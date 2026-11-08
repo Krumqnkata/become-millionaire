@@ -1,5 +1,5 @@
 import type { ShowAudio } from '../../audio/engine.ts';
-import type { Voice } from '../../audio/voice.ts';
+import type { Voice, VoiceRole } from '../../audio/voice.ts';
 import { HOST } from '../../show/script.ts';
 import { h, prefersReducedMotion, s, wait } from '../dom.ts';
 
@@ -8,7 +8,10 @@ export type HostMood = 'neutral' | 'happy' | 'sad' | 'tense';
 export interface HostView {
   el: HTMLElement;
   /** Shows a line in the speech bubble and reads it aloud. Resolves when finished (or skipped). */
-  say(text: string, opts?: { mood?: HostMood; pitch?: number; speaker?: string }): Promise<void>;
+  say(
+    text: string,
+    opts?: { mood?: HostMood; pitch?: number; speaker?: string; role?: VoiceRole },
+  ): Promise<void>;
   /** Finishes the current line immediately. */
   skip(): void;
   setMood(mood: HostMood): void;
@@ -137,8 +140,9 @@ export function createHost(voice: Voice, audio: ShowAudio): HostView {
     {
       mood = 'neutral',
       pitch,
+      role,
       speaker: who,
-    }: { mood?: HostMood; pitch?: number; speaker?: string } = {},
+    }: { mood?: HostMood; pitch?: number; speaker?: string; role?: VoiceRole } = {},
   ) {
     const my = ++token;
     skipCurrent?.();
@@ -174,7 +178,7 @@ export function createHost(voice: Voice, audio: ShowAudio): HostView {
     // Without a voice, leave enough time to read the line.
     const speaking =
       voice.enabled && voice.available
-        ? voice.speak(line, pitch ? { pitch } : {})
+        ? voice.speak(line, { ...(pitch ? { pitch } : {}), ...(role ? { role } : {}) })
         : wait(Math.min(3200, 700 + line.length * 28));
 
     await Promise.race([Promise.all([typing, speaking]), skipPromise]);

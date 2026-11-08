@@ -142,6 +142,15 @@ export function menuScreen(ctx: AppContext): Screen {
     h('span', { class: 'btn__arrow', 'aria-hidden': 'true' }, '→'),
   );
 
+  // Voices load asynchronously; only nag when it is clear there is no Bulgarian voice.
+  const voiceHint = h(
+    'p',
+    { class: 'hero__hint', hidden: true },
+    '🎙️ Този браузър няма български глас, затова водещият ще говори само в балончета. ',
+    'За глас отвори играта в Microsoft Edge или на телефона си.',
+  );
+  void ctx.voice.ready.then(() => (voiceHint.hidden = ctx.voice.available));
+
   const el = h(
     'section',
     { class: 'screen menu' },
@@ -156,6 +165,7 @@ export function menuScreen(ctx: AppContext): Screen {
         { class: 'hero__tagline' },
         'Седни на горещия стол. Водещият те чака, светлините са запалени.',
       ),
+      voiceHint,
     ),
     h(
       'div',
