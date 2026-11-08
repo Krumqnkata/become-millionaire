@@ -267,7 +267,9 @@ export function renderVoice(template: string, vars: LineVars): VoicePart[] {
     if (i > 0) parts.push(ANSWER_PART);
     const text = fillPlain(piece, vars)
       .replace(/\s{2,}/g, ' ')
-      .trim();
+      .trim()
+      // "„{answer}“. Окончателно ли е?" leaves ". Окончателно…" – drop the stray punctuation.
+      .replace(/^[.,;:!?…–-]+\s*/, '');
     if (/[\p{L}\d]/u.test(text)) parts.push(text);
   });
   return parts;

@@ -7,6 +7,7 @@ import {
   friendPhrases,
   planStats,
   questionSprite,
+  resolveSpans,
 } from '../scripts/voice-plan.ts';
 import { clipKey, questionHash } from '../src/audio/voice-pack.ts';
 import { formatPrize, prizeForLevel } from '../src/game/ladder.ts';
@@ -44,6 +45,12 @@ describe('host lines', () => {
       'О, не… Съжалявам. Верният отговор е',
       { answer: true },
     ]);
+  });
+
+  it('drop punctuation left over around the answer', () => {
+    expect(
+      renderVoice('{letter}, „{answer}“. Окончателно ли е?', { letter: 'Б', answer: 'Рейн' }),
+    ).toEqual([{ answer: true }, 'Окончателно ли е?']);
   });
 
   it('use the alternative wording when there is no name', () => {
@@ -104,6 +111,35 @@ describe('SSML', () => {
       expect(ssml).toContain(`<bookmark mark="${mark}|e"/>`);
     }
     expect(ssml).toContain('В: Волга');
+  });
+
+  it('ends with a closing word, so Azure reports the last bookmark', () => {
+    const ssml = buildSsml(questionSprite(sample));
+    expect(ssml).toMatch(
+      /<bookmark mark="a3\|e"\/><\/prosody><break time="\d+ms"\/><bookmark mark="__tail"\/>Край\.<\/voice><\/speak>$/,
+    );
+  });
+
+  it('places items even when Azure drops a bookmark', () => {
+    const sprite = questionSprite(sample);
+    const marks = new Map<string, number>([
+      ['q|s', 0.1],
+      ['q|e', 2.0],
+      ['a0|s', 2.8],
+      ['a0|e', 3.4],
+      ['a1|s', 3.9], // a1|e missing → next start
+      ['a2|s', 5.0],
+      ['a2|e', 5.6],
+      ['a3|s', 6.1], // a3|e missing (the last one) → end of file
+    ]);
+    const spans = resolveSpans(sprite, marks, 8);
+    expect(spans.get('a1')).toEqual([3.87, 4.97]);
+    expect(spans.get('a3')).toEqual([6.07, 6.92]); // no tail mark → end of file − 1.2 s
+    // With the closing word's bookmark at 7.3 s and a 450 ms pause before it, speech ended ≈ 6.85 s.
+    expect(resolveSpans(sprite, new Map([...marks, ['__tail', 7.3]]), 8).get('a3')).toEqual([
+      6.07, 6.97,
+    ]);
+    expect(() => resolveSpans(sprite, new Map(), 8)).toThrow(/missing bookmark/);
   });
 
   it('escapes XML and normalizes text for speech', () => {

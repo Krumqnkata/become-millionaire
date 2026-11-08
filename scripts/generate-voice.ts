@@ -18,7 +18,15 @@ import { fileURLToPath } from 'node:url';
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 import type { VoiceIndex } from '../src/audio/voice-pack.ts';
 import { loadQuestionBank } from '../src/game/questions.ts';
-import { buildPlan, buildSsml, planStats, spriteHash, VOICES, type Sprite } from './voice-plan.ts';
+import {
+  buildPlan,
+  buildSsml,
+  planStats,
+  resolveSpans,
+  spriteHash,
+  VOICES,
+  type Sprite,
+} from './voice-plan.ts';
 
 const ROOT = resolve(fileURLToPath(import.meta.url), '../..');
 const OUT = resolve(ROOT, 'public/voice');
@@ -37,9 +45,6 @@ const ONLY = args.get('only'); // "lines" | "questions"
 
 /** F0 allows 20 requests per 60 s; keep a little margin. */
 const MIN_INTERVAL_MS = FAST ? 0 : 3300;
-/** Bookmark offsets are exact, but MP3 decoding adds a few ms of delay – keep a margin. */
-const LEAD = 0.03;
-const TAIL = 0.12;
 
 // ─── Credentials ─────────────────────────────────────────────────────────────
 
@@ -96,31 +101,26 @@ function prune(index: VoiceIndex, plan: Sprite[]): number {
   return removed;
 }
 
-const round = (n: number) => Math.round(n * 1000) / 1000;
-
 function record(
   index: VoiceIndex,
   sprite: Sprite,
   marks: Map<string, number>,
   duration: number,
 ): void {
-  const span = (mark: string): [number, number] => {
-    const start = marks.get(`${mark}|s`);
-    const end = marks.get(`${mark}|e`);
-    if (start === undefined || end === undefined)
-      throw new Error(`missing bookmark "${mark}" in ${sprite.id}`);
-    return [round(Math.max(0, start - LEAD)), round(Math.min(duration || Infinity, end + TAIL))];
-  };
+  // A sprite is recorded completely or not at all: this throws before anything is written.
+  const spans = resolveSpans(sprite, marks, duration);
+  const items = sprite.items;
+  const span = (mark: string) => spans.get(mark)!;
 
   if (sprite.question) {
     index.questions[sprite.question.id] = {
       sprite: sprite.id,
       hash: sprite.question.hash,
       question: span('q'),
-      answers: sprite.items.filter((i) => i.mark.startsWith('a')).map((i) => span(i.mark)),
+      answers: items.filter((i) => i.mark.startsWith('a')).map((i) => span(i.mark)),
     };
   } else {
-    for (const item of sprite.items) index.clips[item.mark] = [sprite.id, ...span(item.mark)];
+    for (const item of items) index.clips[item.mark] = [sprite.id, ...span(item.mark)];
   }
   index.sprites[sprite.id] = sprite.file;
   index.hashes[sprite.id] = spriteHash(sprite);

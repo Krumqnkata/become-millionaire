@@ -139,6 +139,9 @@ const escapeXml = (s: string) =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;');
 
+export const TAIL_WORD = 'Край.';
+export const TAIL_MARK = '__tail';
+
 const pitchFor = (item: PlanItem) => (item.role === 'male' ? '-12%' : PROSODY[item.style].pitch);
 
 /** One SSML document per sprite, with a bookmark before and after every item. */
@@ -158,8 +161,58 @@ export function buildSsml(sprite: Sprite): string {
       `<bookmark mark="${escapeXml(item.mark)}|s"/>${escapeXml(toSpeech(item.text))}<bookmark mark="${escapeXml(item.mark)}|e"/>` +
       `</prosody><break time="${item.pause}ms"/>`;
   }
-  if (openVoice) body += '</voice>';
+  // Azure drops bookmarks that come after the last spoken word, so the final "|e" bookmark
+  // would go missing. A short closing word fixes that; it is never played (clips end earlier).
+  if (openVoice) body += `<bookmark mark="${TAIL_MARK}"/>${TAIL_WORD}</voice>`;
   return `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="bg-BG">${body}</speak>`;
+}
+
+/** Bookmark offsets are exact, but MP3 decoding adds a few ms of delay – keep a margin. */
+const LEAD = 0.03;
+const TAIL = 0.12;
+/** Gap assumed between phrases when a bookmark is missing (pauses are ≥ 450 ms). */
+const GAP = 0.15;
+const round = (n: number) => Math.round(n * 1000) / 1000;
+
+/**
+ * Turns the bookmark times Azure reported into [start, end] for every item of a sprite.
+ * A missing bookmark is inferred from its neighbours (or the end of the file);
+ * throws only when an item cannot be placed at all.
+ */
+export function resolveSpans(
+  sprite: Sprite,
+  marks: ReadonlyMap<string, number>,
+  duration: number,
+): Map<string, [number, number]> {
+  const items = sprite.items;
+  const spans = new Map<string, [number, number]>();
+  items.forEach((item, i) => {
+    const last = i === items.length - 1;
+    const prevEnd = i > 0 ? marks.get(`${items[i - 1]!.mark}|e`) : 0;
+    // After the last item comes its pause, then the closing word (bookmarked as TAIL_MARK).
+    const tail = marks.get(TAIL_MARK);
+    const nextStart = last
+      ? tail !== undefined
+        ? tail - item.pause / 1000 + GAP
+        : undefined
+      : marks.get(`${items[i + 1]!.mark}|s`);
+    const start =
+      marks.get(`${item.mark}|s`) ?? (prevEnd !== undefined ? prevEnd + GAP : undefined);
+    const end =
+      marks.get(`${item.mark}|e`) ??
+      (nextStart !== undefined
+        ? nextStart - GAP
+        : last && duration > 0
+          ? duration - 1.2
+          : undefined);
+    if (start === undefined || end === undefined || end <= start)
+      throw new Error(`missing bookmark "${item.mark}" in ${sprite.id}`);
+    spans.set(item.mark, [
+      round(Math.max(0, start - LEAD)),
+      round(duration > 0 ? Math.min(duration, end + TAIL) : end + TAIL),
+    ]);
+  });
+  return spans;
 }
 
 /** Changes whenever the text, voices or prosody of a sprite change. */
