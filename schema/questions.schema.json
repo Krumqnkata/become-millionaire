@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://krumqnkata.github.io/become-millionaire/schema/questions.schema.json",
+  "title": "Пътят към милиона – файл с въпроси",
+  "description": "Една категория въпроси. Пусни `npm run validate` след всяка промяна.",
+  "type": "object",
+  "required": ["category", "name", "questions"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "category": {
+      "description": "id на категорията. Трябва да съвпада с id-то в manifest.json.",
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$"
+    },
+    "name": {
+      "description": "Име на категорията, както се показва в играта.",
+      "type": "string",
+      "minLength": 1
+    },
+    "questions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/question" }
+    }
+  },
+  "$defs": {
+    "question": {
+      "type": "object",
+      "required": ["id", "difficulty", "question", "answers", "correct"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Уникален идентификатор в kebab-case, напр. \"hist-025\".",
+          "type": "string",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+        },
+        "difficulty": {
+          "description": "1 = много лесен … 5 = експертен.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "question": { "description": "Текстът на въпроса.", "type": "string", "minLength": 1 },
+        "answers": {
+          "description": "Точно 4 различни отговора. Редът се разбърква при всяка игра.",
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "correct": {
+          "description": "Индекс (0–3) на верния отговор в масива \"answers\".",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "explanation": {
+          "description": "Интересен факт, който се показва след отговора (по желание).",
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

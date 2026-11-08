@@ -1,0 +1,82 @@
+{
+  "categories": [
+    {
+      "id": "history",
+      "name": "История",
+      "icon": "🏛️",
+      "file": "history.json"
+    },
+    {
+      "id": "geography",
+      "name": "География",
+      "icon": "🌍",
+      "file": "geography.json"
+    },
+    {
+      "id": "science",
+      "name": "Наука и природа",
+      "icon": "🔬",
+      "file": "science.json"
+    },
+    {
+      "id": "art",
+      "name": "Изкуство и литература",
+      "icon": "🎨",
+      "file": "art.json"
+    },
+    {
+      "id": "sport",
+      "name": "Спорт",
+      "icon": "⚽",
+      "file": "sport.json"
+    },
+    {
+      "id": "entertainment",
+      "name": "Кино и музика",
+      "icon": "🎬",
+      "file": "entertainment.json"
+    },
+    {
+      "id": "bulgaria",
+      "name": "България",
+      "icon": "🌹",
+      "file": "bulgaria.json"
+    },
+    {
+      "id": "general",
+      "name": "Обща култура",
+      "icon": "💡",
+      "file": "general.json"
+    },
+    {
+      "id": "animals",
+      "name": "Животни",
+      "icon": "🦁",
+      "file": "animals.json"
+    },
+    {
+      "id": "tech",
+      "name": "Технологии",
+      "icon": "💻",
+      "file": "tech.json"
+    },
+    {
+      "id": "myth",
+      "name": "Митология",
+      "icon": "⚡",
+      "file": "myth.json"
+    },
+    {
+      "id": "food",
+      "name": "Кухня",
+      "icon": "🍲",
+      "file": "food.json"
+    },
+    {
+      "id": "language",
+      "name": "Езикът ни",
+      "icon": "🔤",
+      "file": "language.json"
+    }
+  ]
+}
