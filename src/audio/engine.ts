@@ -92,6 +92,7 @@ export class ShowAudio {
   private music!: GainNode;
   private sfx!: GainNode;
   private reverb!: ConvolverNode;
+  private voiceBus!: GainNode;
   private noise!: AudioBuffer;
 
   private bed: { name: BedName; gain: GainNode; def: Bed; step: number; next: number } | null =
@@ -149,6 +150,21 @@ export class ShowAudio {
         const wet = ctx.createGain();
         wet.gain.value = 0.9;
         this.reverb.connect(wet).connect(this.master);
+
+        // The host's recorded voice: cut the rumble, add a little presence and studio air.
+        this.voiceBus = ctx.createGain();
+        const lowCut = ctx.createBiquadFilter();
+        lowCut.type = 'highpass';
+        lowCut.frequency.value = 80;
+        const presence = ctx.createBiquadFilter();
+        presence.type = 'peaking';
+        presence.frequency.value = 3200;
+        presence.Q.value = 0.8;
+        presence.gain.value = 2.5;
+        const air = ctx.createGain();
+        air.gain.value = 0.07;
+        this.voiceBus.connect(lowCut).connect(presence).connect(this.master);
+        presence.connect(air).connect(this.reverb);
 
         this.noise = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
         const data = this.noise.getChannelData(0);
@@ -215,6 +231,52 @@ export class ShowAudio {
       this.buffers.set(key, pending);
     }
     return pending;
+  }
+
+  /** Decodes compressed audio (e.g. a voice sprite). The input is copied, not consumed. */
+  async decode(data: ArrayBuffer): Promise<AudioBuffer | null> {
+    const ctx = this.ensure();
+    if (!ctx) return null;
+    try {
+      return await ctx.decodeAudioData(data.slice(0));
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Plays part of a buffer through the voice channel. `done` resolves when it ends or is stopped –
+   * also when audio is blocked (no user gesture yet), so the show never waits forever.
+   */
+  playVoice(
+    buffer: AudioBuffer,
+    start: number,
+    end: number,
+  ): { done: Promise<void>; stop(): void } {
+    const ctx = this.ensure();
+    const duration = Math.max(0, Math.min(end, buffer.duration) - start);
+    if (!ctx || duration === 0) return { done: Promise.resolve(), stop() {} };
+
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    src.connect(this.voiceBus);
+    let finish!: () => void;
+    const done = new Promise<void>((resolve) => (finish = resolve));
+    const safety = setTimeout(finish, (duration + 0.6) * 1000);
+    src.onended = () => finish();
+    void done.then(() => clearTimeout(safety));
+    src.start(ctx.currentTime + 0.01, start, duration);
+    return {
+      done,
+      stop: () => {
+        try {
+          src.stop();
+        } catch {
+          /* already stopped */
+        }
+        finish();
+      },
+    };
   }
 
   hasSample(name: SampleName): boolean {

@@ -26,8 +26,9 @@ export interface VoiceInfo {
 }
 
 const NATURAL = /natural|online|neural|premium|enhanced/i;
-const MALE = /borislav|ivan|male\b/i;
-const FEMALE = /kalina|dar(i)?ya|female/i;
+// Edge reports some voice names in Cyrillic ("Microsoft Борислав Online (Natural)").
+const MALE = /borislav|борислав|ivan|иван|male\b/i;
+const FEMALE = /kalina|калина|dar(i)?ya|дария|female/i;
 
 /** "Microsoft Borislav Online (Natural) - Bulgarian (Bulgaria)" → "Borislav Online (Natural)" */
 function label(voice: SpeechSynthesisVoice): string {

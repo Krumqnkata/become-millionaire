@@ -140,11 +140,12 @@ export function resultScreen(ctx: AppContext, game: Game): Screen {
   );
 
   ctx.announce(`${copy.title}. Печелиш ${formatPrize(winnings)}.`);
-  const goodbye = line('goodbye', { name: loadSettings().playerName.trim() || 'нашия участник' });
+  const playerName = loadSettings().playerName.trim();
+  const goodbye = line('goodbye', playerName ? { name: playerName } : {});
   el.querySelector('.result__card')?.append(
-    h('p', { class: 'result__host' }, `🎙️ ${HOST.shortName}: „${goodbye}“`),
+    h('p', { class: 'result__host' }, `🎙️ ${HOST.shortName}: „${goodbye.text}“`),
   );
-  void ctx.voice.speak(goodbye);
+  void ctx.narrator.say(goodbye);
   return { el, focus: fame?.querySelector('input') ?? playAgain };
 }
 

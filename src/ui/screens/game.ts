@@ -45,15 +45,17 @@ const suspenseFor = (level: number) => (prefersReducedMotion() ? 300 : 500 + lev
 export function gameScreen(ctx: AppContext, modeId: ModeId, categories: string[]): Screen {
   const mode = MODES[modeId];
   const settings = loadSettings();
-  const playerName = settings.playerName.trim() || 'нашия участник';
+  const playerName = settings.playerName.trim();
   const game = new Game({
     mode,
     pool: ctx.bank.questions,
     categories: new Set(categories),
     recent: loadRecentQuestionIds(),
+    // Recorded questions are read in their recorded order.
+    shuffle: !ctx.narrator.usingRecordings,
   });
   const categoryById = new Map(ctx.bank.categories.map((c) => [c.id, c]));
-  const host = createHost(ctx.voice, ctx.audio);
+  const host = createHost(ctx.narrator, ctx.audio);
 
   let timer: TimerView | null = null;
   let closeModal: (() => void) | null = null;
@@ -71,18 +73,31 @@ export function gameScreen(ctx: AppContext, modeId: ModeId, categories: string[]
   /** The drum roll playing while a big answer is locked. */
   let drum: SampleHandle | null = null;
 
-  const readAloud = () => settings.readQuestions && ctx.voice.enabled && ctx.voice.available;
+  const readAloud = () => settings.readQuestions && ctx.narrator.canSpeak;
   const tier = () => tierOf(game.level);
   const letterOf = (i: AnswerIndex) => ANSWER_LETTERS[i];
 
   const vars = (extra: LineVars = {}): LineVars => ({
-    name: playerName,
+    ...(playerName ? { name: playerName } : {}),
     prize: formatPrize(prizeForLevel(game.level)),
     level: game.level,
     ...extra,
   });
-  const say = (key: LineKey, extra: LineVars = {}, mood: HostMood = 'neutral') =>
-    host.say(line(key, vars(extra)), { mood });
+  /**
+   * The host says a line. `answer` is the answer the line talks about, so the recorded
+   * voice can play it from the question's recording.
+   */
+  const say = (
+    key: LineKey,
+    extra: LineVars = {},
+    mood: HostMood = 'neutral',
+    answer?: AnswerIndex,
+  ) =>
+    host.say(line(key, vars(extra)), {
+      mood,
+      question: game.question,
+      ...(answer !== undefined ? { answer } : {}),
+    });
 
   /** Waits, unless the player asked to skip the current sequence. */
   const pause = async (ms: number) => {
@@ -286,7 +301,7 @@ export function gameScreen(ctx: AppContext, modeId: ModeId, categories: string[]
   function skipSequence() {
     skipRequested = true;
     host.skip();
-    ctx.voice.stop();
+    ctx.narrator.stop();
   }
 
   async function intro() {
@@ -296,6 +311,9 @@ export function gameScreen(ctx: AppContext, modeId: ModeId, categories: string[]
     ctx.audio.setBed('none');
     ctx.audio.play('intro');
     renderQuestion();
+    for (const prefix of ['common-', 'level-1-', 'level-2-', 'friends-'])
+      ctx.narrator.prefetch(prefix);
+    ctx.narrator.prefetchQuestion(game.question);
     replace(
       actionBar,
       h(
@@ -318,6 +336,8 @@ export function gameScreen(ctx: AppContext, modeId: ModeId, categories: string[]
     skipRequested = false;
     setReady(false);
     renderQuestion();
+    ctx.narrator.prefetchQuestion(game.question);
+    ctx.narrator.prefetch(`level-${game.level + 1}-`);
     timerSlot.replaceChildren();
     ctx.stage('question', tier());
     ctx.audio.play('start');
@@ -338,7 +358,7 @@ export function gameScreen(ctx: AppContext, modeId: ModeId, categories: string[]
     questionCard.classList.remove('is-entering');
     void questionCard.offsetWidth;
     questionCard.classList.add('is-entering');
-    if (readAloud() && !skipRequested) await ctx.voice.speak(game.question.question);
+    if (readAloud() && !skipRequested) await ctx.narrator.readQuestion(game.question);
     else await pause(500);
     if (!still(mySeq)) return;
 
@@ -346,7 +366,7 @@ export function gameScreen(ctx: AppContext, modeId: ModeId, categories: string[]
       answerButtons[i]?.classList.remove('is-pending');
       if (skipRequested) continue;
       ctx.audio.play('reveal');
-      if (readAloud()) await ctx.voice.speak(`${letterOf(i)}: ${game.question.answers[i]}`);
+      if (readAloud()) await ctx.narrator.readAnswer(game.question, i);
       else await pause(260);
       if (!still(mySeq)) return;
     }
@@ -393,7 +413,12 @@ export function gameScreen(ctx: AppContext, modeId: ModeId, categories: string[]
         ),
       ),
     );
-    void say('confirm', { letter: letterOf(index), answer: game.question.answers[index] });
+    void say(
+      'confirm',
+      { letter: letterOf(index), answer: game.question.answers[index] },
+      'neutral',
+      index,
+    );
   }
 
   function cancelSelection() {
@@ -505,7 +530,12 @@ export function gameScreen(ctx: AppContext, modeId: ModeId, categories: string[]
     next.focus({ preventScroll: true });
     const key: LineKey = reachedSafeHaven ? 'safe' : game.level >= 10 ? 'correctBig' : 'correct';
     if (still(mySeq))
-      await say(key, { answer: game.question.answers[game.question.correct] }, 'happy');
+      await say(
+        key,
+        { answer: game.question.answers[game.question.correct] },
+        'happy',
+        game.question.correct,
+      );
   }
 
   async function onGameOver(reason: 'wrong' | 'timeout', mySeq: number) {
@@ -543,7 +573,7 @@ export function gameScreen(ctx: AppContext, modeId: ModeId, categories: string[]
       answer: q.answers[q.correct],
       guaranteed: formatPrize(game.winnings),
     };
-    await say(reason === 'timeout' ? 'timeout' : 'wrong', extra, 'sad');
+    await say(reason === 'timeout' ? 'timeout' : 'wrong', extra, 'sad', q.correct);
     if (still(mySeq)) await say(game.winnings > 0 ? 'wrongKeep' : 'wrongNothing', extra, 'neutral');
   }
 

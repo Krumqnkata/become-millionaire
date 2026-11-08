@@ -41,6 +41,8 @@ export interface GameOptions {
   /** Question ids seen in recent games, avoided when possible. */
   recent?: ReadonlySet<string>;
   rng?: Rng;
+  /** Shuffle the answers (default). Off when a recorded voice reads them in a fixed order. */
+  shuffle?: boolean;
 }
 
 export class GameError extends Error {}
@@ -55,6 +57,7 @@ export class Game {
   readonly categories: ReadonlySet<string>;
   private readonly recent: ReadonlySet<string>;
   private readonly rng: Rng;
+  private readonly shuffle: boolean;
 
   /** 1-based level currently being played. */
   level = 1;
@@ -70,12 +73,13 @@ export class Game {
   /** Results of lifelines used on the current question (for re-rendering). */
   lifelineResults: LifelineResult[] = [];
 
-  constructor({ mode, pool, categories, recent, rng = defaultRng }: GameOptions) {
+  constructor({ mode, pool, categories, recent, rng = defaultRng, shuffle = true }: GameOptions) {
     this.mode = mode;
     this.pool = pool;
     this.categories = categories ?? new Set();
     this.recent = recent ?? new Set();
     this.rng = rng;
+    this.shuffle = shuffle;
     this.question = this.drawQuestion();
   }
 
@@ -233,7 +237,7 @@ export class Game {
     );
     if (!picked) throw new GameError('Свършиха въпросите');
     this.seenIds.add(picked.id);
-    return shuffleAnswers(picked, this.rng);
+    return this.shuffle ? shuffleAnswers(picked, this.rng) : { ...picked };
   }
 
   private resetQuestionState(): void {

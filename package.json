@@ -25,6 +25,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "validate": "tsx scripts/validate-questions.ts",
+    "voice": "tsx scripts/generate-voice.ts",
+    "voice:plan": "tsx scripts/generate-voice.ts --dry-run",
     "check": "npm run lint && npm run typecheck && npm run validate && npm test"
   },
   "dependencies": {
@@ -36,6 +38,7 @@
     "@types/node": "^24.0.0",
     "eslint": "^10.14.0",
     "globals": "^17.14.0",
+    "microsoft-cognitiveservices-speech-sdk": "^1.53.0",
     "prettier": "^3.9.10",
     "tsx": "^4.23.15",
     "typescript": "~6.0.3",

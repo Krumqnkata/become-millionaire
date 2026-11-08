@@ -165,7 +165,7 @@ export interface PhoneResult {
   message: string;
 }
 
-function friendMessage(
+export function friendMessage(
   letter: string,
   confidence: number,
   isExpert: boolean,

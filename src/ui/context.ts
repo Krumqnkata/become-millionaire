@@ -1,4 +1,5 @@
 import type { ShowAudio } from '../audio/engine.ts';
+import type { Narrator } from '../audio/narrator.ts';
 import type { Voice } from '../audio/voice.ts';
 import type { Game } from '../game/engine.ts';
 import type { QuestionBank } from '../game/questions.ts';
@@ -25,6 +26,8 @@ export interface AppContext {
   bank: QuestionBank;
   audio: ShowAudio;
   voice: Voice;
+  /** Speaks for the host: recorded voice pack first, browser voice as fallback. */
+  narrator: Narrator;
   confetti: Confetti;
   /** Reads a message out loud to screen-reader users. */
   announce(message: string): void;

@@ -35,7 +35,7 @@ describe('host script', () => {
 
   it('picks variations at random', () => {
     const rng = createRng(3);
-    const seen = new Set(Array.from({ length: 50 }, () => line('correct', ALL_VARS, rng)));
+    const seen = new Set(Array.from({ length: 50 }, () => line('correct', ALL_VARS, rng).text));
     expect(seen.size).toBeGreaterThan(1);
   });
 

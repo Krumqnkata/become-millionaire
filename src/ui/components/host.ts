@@ -1,17 +1,23 @@
 import type { ShowAudio } from '../../audio/engine.ts';
-import type { Voice, VoiceRole } from '../../audio/voice.ts';
-import { HOST } from '../../show/script.ts';
+import type { Narrator, SayOptions } from '../../audio/narrator.ts';
+import type { VoiceRole } from '../../audio/voice-pack.ts';
+import { HOST, type Line } from '../../show/script.ts';
 import { h, prefersReducedMotion, s, wait } from '../dom.ts';
 
 export type HostMood = 'neutral' | 'happy' | 'sad' | 'tense';
 
+export interface HostSayOptions extends Pick<SayOptions, 'question' | 'answer'> {
+  mood?: HostMood;
+  pitch?: number;
+  /** Shown instead of the host's name, e.g. a friend on the phone. */
+  speaker?: string;
+  role?: VoiceRole;
+}
+
 export interface HostView {
   el: HTMLElement;
   /** Shows a line in the speech bubble and reads it aloud. Resolves when finished (or skipped). */
-  say(
-    text: string,
-    opts?: { mood?: HostMood; pitch?: number; speaker?: string; role?: VoiceRole },
-  ): Promise<void>;
+  say(text: string | Line, opts?: HostSayOptions): Promise<void>;
   /** Finishes the current line immediately. */
   skip(): void;
   setMood(mood: HostMood): void;
@@ -110,7 +116,7 @@ function avatar(): { svg: SVGSVGElement; mouth: SVGPathElement } {
   return { svg, mouth };
 }
 
-export function createHost(voice: Voice, audio: ShowAudio): HostView {
+export function createHost(narrator: Narrator, audio: ShowAudio): HostView {
   const { svg, mouth } = avatar();
   const speaker = h('span', { class: 'host__name' }, HOST.name);
   const text = h('p', { class: 'host__text' });
@@ -135,15 +141,9 @@ export function createHost(voice: Voice, audio: ShowAudio): HostView {
     el.dataset.mood = mood;
   };
 
-  async function say(
-    line: string,
-    {
-      mood = 'neutral',
-      pitch,
-      role,
-      speaker: who,
-    }: { mood?: HostMood; pitch?: number; speaker?: string; role?: VoiceRole } = {},
-  ) {
+  async function say(spoken: string | Line, opts: HostSayOptions = {}) {
+    const { mood = 'neutral', pitch, role, speaker: who, question, answer } = opts;
+    const line = typeof spoken === 'string' ? spoken : spoken.text;
     const my = ++token;
     skipCurrent?.();
     setMood(mood);
@@ -176,13 +176,17 @@ export function createHost(voice: Voice, audio: ShowAudio): HostView {
     })();
 
     // Without a voice, leave enough time to read the line.
-    const speaking =
-      voice.enabled && voice.available
-        ? voice.speak(line, { ...(pitch ? { pitch } : {}), ...(role ? { role } : {}) })
-        : wait(Math.min(3200, 700 + line.length * 28));
+    const speaking = narrator.canSpeak
+      ? narrator.say(spoken, {
+          ...(pitch ? { pitch } : {}),
+          ...(role ? { role } : {}),
+          ...(question ? { question } : {}),
+          ...(answer !== undefined ? { answer } : {}),
+        })
+      : wait(Math.min(3200, 700 + line.length * 28));
 
     await Promise.race([Promise.all([typing, speaking]), skipPromise]);
-    if (skipped) voice.stop();
+    if (skipped) narrator.stop();
     if (my === token) {
       text.textContent = line;
       el.classList.remove('is-talking');
@@ -202,7 +206,7 @@ export function createHost(voice: Voice, audio: ShowAudio): HostView {
     stop() {
       token++;
       skipCurrent?.();
-      voice.stop();
+      narrator.stop();
       el.classList.remove('is-talking');
       audio.duck(false);
     },

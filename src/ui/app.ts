@@ -1,4 +1,6 @@
 import { ShowAudio } from '../audio/engine.ts';
+import { Narrator } from '../audio/narrator.ts';
+import { VoicePack } from '../audio/voice-pack.ts';
 import { Voice } from '../audio/voice.ts';
 import type { Game } from '../game/engine.ts';
 import { formatPrize } from '../game/ladder.ts';
@@ -23,6 +25,8 @@ export class App {
   private readonly muteButton: HTMLButtonElement;
   private readonly audio: ShowAudio;
   private readonly voice: Voice;
+  private readonly pack = new VoicePack();
+  private readonly narrator: Narrator;
   private readonly confetti: Confetti;
   private current: Screen | null = null;
   private ctx: AppContext | null = null;
@@ -32,6 +36,7 @@ export class App {
     this.audio = new ShowAudio({ muted: settings.muted, music: settings.music });
     this.audio.setVolume(settings.volume);
     this.voice = new Voice(settings.voice && !settings.muted, settings.voiceName);
+    this.narrator = new Narrator(this.voice, this.audio, this.pack, settings.recordedVoice);
     void this.audio.loadRecordings(import.meta.env.BASE_URL);
 
     this.muteButton = h('button', {
@@ -122,7 +127,10 @@ export class App {
       ),
     );
     try {
-      const bank = await loadQuestionBank(`${import.meta.env.BASE_URL}questions/`);
+      const [bank] = await Promise.all([
+        loadQuestionBank(`${import.meta.env.BASE_URL}questions/`),
+        this.pack.load(import.meta.env.BASE_URL),
+      ]);
       this.ctx = this.createContext(bank);
       this.ctx.go.menu();
     } catch (error) {
@@ -148,6 +156,7 @@ export class App {
       bank,
       audio: this.audio,
       voice: this.voice,
+      narrator: this.narrator,
       confetti: this.confetti,
       announce: (message) => {
         this.live.textContent = '';
@@ -171,7 +180,7 @@ export class App {
 
   private show(name: string, screen: Screen): void {
     this.current?.destroy?.();
-    this.voice.stop();
+    this.narrator.stop();
     this.current = screen;
     this.root.dataset.screen = name;
     if (name !== 'game') {
@@ -252,7 +261,7 @@ export class App {
       onChange: () => this.audio.play('select'),
     });
 
-    const noVoice = !this.voice.available;
+    const noVoice = !this.voice.available && !this.pack.ready;
     openModal({
       title: '⚙️ Настройки',
       body: h(
@@ -260,7 +269,15 @@ export class App {
         { class: 'settings' },
         h('label', { class: 'settings__volume' }, '🔊 Сила на звука', volume),
         toggle('music', '🎵 Музика', null, (on) => this.audio.setMusic(on)),
-        noVoice ? null : this.voicePicker(),
+        this.pack.ready
+          ? toggle(
+              'recordedVoice',
+              '🎙️ Записан глас (Azure „Борислав“)',
+              'Еднакво хубав във всеки браузър. Изключи, за да чуваш гласа на браузъра.',
+              (on) => (this.narrator.recorded = on),
+            )
+          : null,
+        this.voice.available ? this.voicePicker() : null,
         toggle(
           'voice',
           '🎙️ Гласът на водещия',

@@ -149,7 +149,9 @@ export function menuScreen(ctx: AppContext): Screen {
     '🎙️ Този браузър няма български глас, затова водещият ще говори само в балончета. ',
     'За глас отвори играта в Microsoft Edge или на телефона си.',
   );
-  void ctx.voice.ready.then(() => (voiceHint.hidden = ctx.voice.available));
+  void ctx.voice.ready.then(
+    () => (voiceHint.hidden = ctx.voice.available || ctx.narrator.usingRecordings),
+  );
 
   const el = h(
     'section',
