@@ -1,0 +1,3 @@
+{
+  "$comment": "Optional recorded sounds. Map a sound or bed name to a file in this folder, e.g. \"correct\": \"correct.mp3\" or \"bed:tier3\": \"tension.mp3\". Anything not listed uses the built-in synthesized version."
+}
