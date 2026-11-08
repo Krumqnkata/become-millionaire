@@ -1,0 +1,468 @@
+/* ==========================================================================
+   The studio: spotlights, dimming and colour washes, the host,
+   and the show-only panels. Driven by <body data-stage> and <body data-tier>.
+   ========================================================================== */
+
+/* ── Spotlights ───────────────────────────────────────────────────────────── */
+
+.lights {
+  position: absolute;
+  inset: 0;
+  --beam: rgba(120, 150, 255, 0.16);
+  --beam-speed: 14s;
+  transition: opacity 0.6s;
+}
+
+.lights__beam {
+  position: absolute;
+  top: -20vh;
+  width: 30vmax;
+  height: 140vh;
+  background: linear-gradient(180deg, var(--beam), transparent 75%);
+  clip-path: polygon(42% 0, 58% 0, 100% 100%, 0 100%);
+  filter: blur(6px);
+  transform-origin: 50% 0;
+  animation: sweep var(--beam-speed) ease-in-out infinite alternate;
+}
+
+.lights__beam--1 {
+  left: 2%;
+  --from: -24deg;
+  --to: 10deg;
+}
+
+.lights__beam--2 {
+  left: 28%;
+  --from: 14deg;
+  --to: -12deg;
+  animation-delay: -4s;
+}
+
+.lights__beam--3 {
+  right: 28%;
+  --from: -14deg;
+  --to: 12deg;
+  animation-delay: -7s;
+}
+
+.lights__beam--4 {
+  right: 2%;
+  --from: 24deg;
+  --to: -10deg;
+  animation-delay: -2s;
+}
+
+@keyframes sweep {
+  from {
+    transform: rotate(var(--from));
+  }
+  to {
+    transform: rotate(var(--to));
+  }
+}
+
+.wash {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.5s;
+}
+
+body[data-tier='2'] .lights {
+  --beam: rgba(150, 120, 255, 0.2);
+  --beam-speed: 10s;
+}
+
+body[data-tier='3'] .lights {
+  --beam: rgba(255, 190, 90, 0.2);
+  --beam-speed: 7s;
+}
+
+body[data-stage='intro'] .lights {
+  --beam: rgba(255, 215, 120, 0.28);
+  --beam-speed: 4s;
+}
+
+body[data-stage='lock'] .lights {
+  opacity: 0.25;
+}
+
+body[data-stage='lock'] .wash {
+  opacity: 1;
+  background: radial-gradient(ellipse at 50% 55%, transparent 25%, rgba(0, 0, 0, 0.6));
+}
+
+body[data-stage='correct'] .lights {
+  --beam: rgba(90, 255, 160, 0.22);
+}
+
+body[data-stage='correct'] .wash {
+  opacity: 1;
+  background: radial-gradient(ellipse at 50% 40%, rgba(47, 209, 122, 0.22), transparent 70%);
+}
+
+body[data-stage='wrong'] .lights {
+  --beam: rgba(255, 90, 110, 0.18);
+  --beam-speed: 30s;
+}
+
+body[data-stage='wrong'] .wash {
+  opacity: 1;
+  background: radial-gradient(ellipse at 50% 40%, rgba(255, 77, 106, 0.22), transparent 70%);
+}
+
+body[data-stage='win'] .lights {
+  --beam: rgba(255, 220, 120, 0.35);
+  --beam-speed: 2.5s;
+}
+
+body[data-stage='win'] .wash {
+  opacity: 1;
+  background: radial-gradient(ellipse at 50% 30%, rgba(245, 197, 66, 0.25), transparent 70%);
+}
+
+body[data-stage='walk'] .lights {
+  --beam: rgba(255, 215, 120, 0.2);
+}
+
+/* While an answer is locked, everything except the answers fades back. */
+.lifelines,
+.status,
+.ladder {
+  transition: opacity 0.4s;
+}
+
+body[data-stage='lock'] .lifelines,
+body[data-stage='lock'] .status,
+body[data-stage='lock'] .ladder {
+  opacity: 0.45;
+}
+
+body[data-stage='lock'] .answer:not(.is-locked) {
+  opacity: 0.5;
+}
+
+/* ── Host ─────────────────────────────────────────────────────────────────── */
+
+.host {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.host__portrait {
+  flex: none;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 3px rgba(245, 197, 66, 0.25),
+    0 10px 30px -8px rgba(0, 0, 0, 0.6);
+  transition: box-shadow 0.3s;
+}
+
+.host__avatar {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.host__eyes {
+  transform-origin: 60px 52px;
+  animation: blink 5s infinite;
+}
+
+@keyframes blink {
+  0%,
+  95%,
+  100% {
+    transform: scaleY(1);
+  }
+  97% {
+    transform: scaleY(0.1);
+  }
+}
+
+.host.is-talking:not(.is-guest) .host__mouth {
+  transform-origin: 60px 66px;
+  animation: talk 0.22s ease-in-out infinite alternate;
+}
+
+@keyframes talk {
+  to {
+    transform: scaleY(1.8) scaleX(0.9);
+  }
+}
+
+.host.is-talking:not(.is-guest) .host__portrait {
+  box-shadow:
+    0 0 0 3px rgba(245, 197, 66, 0.75),
+    0 0 30px -4px rgba(245, 197, 66, 0.6);
+}
+
+.host__bubble {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 64px;
+  padding: 10px 18px 12px;
+  border: 1px solid rgba(245, 197, 66, 0.35);
+  border-radius: 6px 20px 20px 20px;
+  background: linear-gradient(180deg, rgba(25, 34, 90, 0.92), rgba(14, 21, 64, 0.92));
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+
+.host__bubble::before {
+  content: '';
+  position: absolute;
+  top: 18px;
+  left: -8px;
+  width: 14px;
+  height: 14px;
+  border-bottom: 1px solid rgba(245, 197, 66, 0.35);
+  border-left: 1px solid rgba(245, 197, 66, 0.35);
+  background: rgb(23, 32, 86);
+  transform: rotate(45deg);
+}
+
+.host__bubble.is-pop {
+  animation: bubble-pop 0.25s var(--ease-out);
+}
+
+@keyframes bubble-pop {
+  from {
+    opacity: 0.6;
+    transform: scale(0.97);
+  }
+}
+
+.host__name {
+  display: block;
+  color: var(--gold);
+  font: 600 0.72rem var(--font-display);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.host.is-guest .host__name {
+  color: #8fb0ff;
+}
+
+.host__text {
+  margin-top: 2px;
+  font-weight: 700;
+  font-size: 1.02rem;
+  line-height: 1.4;
+}
+
+/* ── Presenting the question ──────────────────────────────────────────────── */
+
+.question__text {
+  transition:
+    opacity 0.5s,
+    filter 0.5s;
+}
+
+.question.is-veiled .question__text {
+  opacity: 0;
+  filter: blur(8px);
+}
+
+.answer__text {
+  transition: opacity 0.35s;
+}
+
+.answer.is-pending {
+  border-style: dashed;
+}
+
+.answer.is-pending .answer__text {
+  opacity: 0;
+}
+
+.hint {
+  color: var(--faint);
+  font-size: 0.85rem;
+}
+
+/* ── Phone a friend ───────────────────────────────────────────────────────── */
+
+.panel__title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.panel--friends {
+  grid-column: 1 / -1;
+}
+
+.panel--friends > .btn {
+  justify-self: end;
+}
+
+.friends {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.friend {
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.2s,
+    transform 0.2s var(--ease-out);
+}
+
+.friend:hover {
+  border-color: var(--gold);
+  transform: translateY(-2px);
+}
+
+.friend__avatar {
+  font-size: 1.6rem;
+}
+
+.friend__name {
+  font-weight: 800;
+}
+
+.friend__role {
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.3;
+}
+
+.friend__tags {
+  color: var(--gold);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.call__clock {
+  min-width: 2.4em;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  font: 800 0.95rem var(--font-display);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.call__clock.is-low {
+  color: var(--red);
+}
+
+.panel--call.is-ringing .call__avatar {
+  animation: ring 0.25s ease-in-out infinite;
+}
+
+.panel--call.is-ended {
+  opacity: 0.75;
+}
+
+.panel--poll.is-voting .poll__bar {
+  transition-duration: 0.15s;
+}
+
+/* ── Menu and result additions ────────────────────────────────────────────── */
+
+.hero__tagline {
+  max-width: 520px;
+  color: var(--faint);
+  font-size: 0.95rem;
+}
+
+.input--name {
+  max-width: 360px;
+  min-height: 48px;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.result__host {
+  max-width: 440px;
+  margin-top: 8px;
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* ── Settings ─────────────────────────────────────────────────────────────── */
+
+.topbar__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.settings {
+  display: grid;
+  gap: 16px;
+}
+
+.settings__volume {
+  display: grid;
+  gap: 8px;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.range {
+  width: 100%;
+  accent-color: var(--gold);
+}
+
+.toggle--row {
+  align-items: flex-start;
+  color: var(--text);
+}
+
+.toggle--row .toggle__ui {
+  margin-top: 2px;
+}
+
+.toggle__label {
+  display: grid;
+  font-weight: 700;
+}
+
+.toggle__label small {
+  color: var(--faint);
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.toggle.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+  .host__portrait {
+    width: 56px;
+    height: 56px;
+  }
+
+  .host__text {
+    font-size: 0.92rem;
+  }
+
+  .lights__beam {
+    width: 50vmax;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lights__beam {
+    animation: none;
+  }
+}
