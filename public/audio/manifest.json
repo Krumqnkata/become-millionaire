@@ -1,3 +1,12 @@
 {
-  "$comment": "Optional recorded sounds. Map a sound or bed name to a file in this folder, e.g. \"correct\": \"correct.mp3\" or \"bed:tier3\": \"tension.mp3\". Anything not listed uses the built-in synthesized version."
+  "$comment": "Recorded audio. \"samples\" are real recordings layered on top of the synthesized show (applause, drum roll, phone). \"replace\" swaps a synthesized sound or music bed for a file, e.g. \"correct\": \"correct.mp3\" or \"bed:tier3\": \"tension.mp3\". Only add files you have the right to publish – see CREDITS.md.",
+  "samples": {
+    "applause-small": "applause-small.mp3",
+    "applause-medium": "applause-medium.mp3",
+    "applause-big": "applause-big.mp3",
+    "cheer": "cheer.mp3",
+    "drumroll": "drumroll.mp3",
+    "phone-ring": "phone-ring.mp3"
+  },
+  "replace": {}
 }

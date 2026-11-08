@@ -5,8 +5,9 @@
  * plucks, drums, risers and bells) run through a compressor and a generated reverb.
  * Background music ("beds") is scheduled with a look-ahead clock so it stays in time.
  *
- * Want real recordings instead? Drop files into `public/audio/` and list them in
- * `public/audio/manifest.json` – any sound or bed listed there replaces the synth version.
+ * On top of that, real CC0 recordings from `public/audio/` (applause, cheering, a drum roll,
+ * a phone) are layered in at the big moments. `public/audio/manifest.json` lists them, and its
+ * `replace` section can swap any synthesized sound or music bed for a recorded file.
  */
 
 export type SoundName =
@@ -16,6 +17,7 @@ export type SoundName =
   | 'select'
   | 'lock'
   | 'correct'
+  | 'correctBig'
   | 'wrong'
   | 'safe'
   | 'win'
@@ -28,6 +30,26 @@ export type SoundName =
   | 'click';
 
 export type BedName = 'none' | 'menu' | 'tier1' | 'tier2' | 'tier3' | 'suspense' | 'phone';
+
+/** Recorded sounds listed under "samples" in `public/audio/manifest.json`. */
+export type SampleName =
+  'applause-small' | 'applause-medium' | 'applause-big' | 'cheer' | 'drumroll' | 'phone-ring';
+
+export interface SampleOptions {
+  gain?: number;
+  /** Seconds to wait before starting. */
+  delay?: number;
+  /** Play only this many seconds (with a fade-out at the end). Defaults to the whole file. */
+  duration?: number;
+  fadeIn?: number;
+  fadeOut?: number;
+  loop?: boolean;
+}
+
+/** A playing recording; `stop()` fades it out. Safe to call even if it never started. */
+export interface SampleHandle {
+  stop(fade?: number): void;
+}
 
 interface Bed {
   bpm: number;
@@ -75,8 +97,11 @@ export class ShowAudio {
   private bed: { name: BedName; gain: GainNode; def: Bed; step: number; next: number } | null =
     null;
   private scheduler = 0;
+  /** Synth sounds or beds replaced by a recorded file (manifest "replace"). */
   private overrides = new Map<string, string>();
-  private buffers = new Map<string, AudioBuffer>();
+  /** Recorded layers (manifest "samples"). */
+  private samples = new Map<SampleName, string>();
+  private buffers = new Map<string, Promise<AudioBuffer | null>>();
   private bedSource: AudioBufferSourceNode | null = null;
 
   muted: boolean;
@@ -128,6 +153,7 @@ export class ShowAudio {
         this.noise = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
         const data = this.noise.getChannelData(0);
         for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+        this.preload();
       }
       if (this.ctx.state === 'suspended') void this.ctx.resume();
       return this.ctx;
@@ -149,35 +175,96 @@ export class ShowAudio {
     return buffer;
   }
 
-  /** Loads optional recorded replacements listed in `<base>audio/manifest.json`. */
-  async loadOverrides(baseUrl: string): Promise<void> {
+  /** Reads `<base>audio/manifest.json`: recorded layers and synth replacements. */
+  async loadRecordings(baseUrl: string): Promise<void> {
     try {
       const res = await fetch(`${baseUrl}audio/manifest.json`);
       if (!res.ok) return;
-      const manifest = (await res.json()) as Record<string, unknown>;
-      for (const [name, file] of Object.entries(manifest)) {
-        if (typeof file === 'string' && file && !name.startsWith('$'))
-          this.overrides.set(name, `${baseUrl}audio/${file}`);
-      }
+      const manifest = (await res.json()) as { samples?: unknown; replace?: unknown };
+      const entries = (section: unknown) =>
+        section && typeof section === 'object'
+          ? Object.entries(section).filter(
+              (e): e is [string, string] => typeof e[1] === 'string' && e[1] !== '',
+            )
+          : [];
+      for (const [name, file] of entries(manifest.samples))
+        this.samples.set(name as SampleName, `${baseUrl}audio/${file}`);
+      for (const [name, file] of entries(manifest.replace))
+        this.overrides.set(name, `${baseUrl}audio/${file}`);
+      if (this.ctx) this.preload();
     } catch {
-      /* no overrides – synth only */
+      /* no recordings – synth only */
     }
   }
 
-  private async buffer(name: string): Promise<AudioBuffer | null> {
-    const url = this.overrides.get(name);
-    if (!url || !this.ctx) return null;
-    const cached = this.buffers.get(name);
-    if (cached) return cached;
-    try {
-      const data = await (await fetch(url)).arrayBuffer();
-      const decoded = await this.ctx.decodeAudioData(data);
-      this.buffers.set(name, decoded);
-      return decoded;
-    } catch {
-      this.overrides.delete(name);
-      return null;
+  /** Decodes every recording in the background so the big moments play without delay. */
+  private preload(): void {
+    for (const [name, url] of this.samples) void this.buffer(`sample:${name}`, url);
+  }
+
+  /** Fetches and decodes a file once; later calls share the same promise. */
+  private buffer(key: string, url: string): Promise<AudioBuffer | null> {
+    const ctx = this.ctx;
+    if (!ctx) return Promise.resolve(null);
+    let pending = this.buffers.get(key);
+    if (!pending) {
+      pending = fetch(url)
+        .then((res) => (res.ok ? res.arrayBuffer() : Promise.reject(new Error(res.statusText))))
+        .then((data) => ctx.decodeAudioData(data))
+        .catch(() => null);
+      this.buffers.set(key, pending);
     }
+    return pending;
+  }
+
+  hasSample(name: SampleName): boolean {
+    return this.samples.has(name);
+  }
+
+  /** Plays a recorded layer with an optional fade in/out and length limit. */
+  sample(name: SampleName, opts: SampleOptions = {}): SampleHandle {
+    const { gain = 0.7, delay = 0, duration, fadeIn = 0.04, fadeOut = 0.8, loop = false } = opts;
+    let stopped = false;
+    let stopNow: ((fade: number) => void) | null = null;
+    const handle: SampleHandle = {
+      stop: (fade = 0.25) => {
+        stopped = true;
+        stopNow?.(fade);
+      },
+    };
+
+    const ctx = this.ensure();
+    const url = this.samples.get(name);
+    if (!ctx || this.muted || !url) return handle;
+
+    void this.buffer(`sample:${name}`, url).then((buffer) => {
+      if (!buffer || stopped) return;
+      const t0 = ctx.currentTime + delay;
+      const src = ctx.createBufferSource();
+      src.buffer = buffer;
+      src.loop = loop;
+      const env = ctx.createGain();
+      env.gain.setValueAtTime(0.0001, t0);
+      env.gain.exponentialRampToValueAtTime(gain, t0 + fadeIn);
+      src.connect(env).connect(this.sfx);
+
+      const length = duration ?? (loop ? null : buffer.duration);
+      if (length !== null) {
+        env.gain.setValueAtTime(gain, t0 + Math.max(fadeIn, length - fadeOut));
+        env.gain.exponentialRampToValueAtTime(0.0001, t0 + length);
+        src.stop(t0 + length + 0.05);
+      }
+      src.start(t0);
+
+      stopNow = (fade) => {
+        const now = ctx.currentTime;
+        env.gain.cancelScheduledValues(now);
+        env.gain.setValueAtTime(Math.max(env.gain.value, 0.0001), now);
+        env.gain.exponentialRampToValueAtTime(0.0001, now + fade);
+        src.stop(now + fade + 0.05);
+      };
+    });
+    return handle;
   }
 
   // ── Settings ─────────────────────────────────────────────────────────────
@@ -455,11 +542,13 @@ export class ShowAudio {
 
   play(name: SoundName): void {
     if (!this.ensure() || this.muted) return;
-    if (this.overrides.has(name)) {
-      void this.buffer(name).then((buf) => buf && this.playBuffer(buf));
+    const override = this.overrides.get(name);
+    if (override) {
+      void this.buffer(name, override).then((buf) => buf && this.playBuffer(buf));
       return;
     }
     const t = this.ctx!.currentTime + 0.02;
+    this.layerRecordings(name);
 
     switch (name) {
       case 'click':
@@ -515,6 +604,7 @@ export class ShowAudio {
         this.note(midi(33), t + 0.1, 0.4, { type: 'sine', gain: 0.5, release: 1.2, wet: 0.4 });
         break;
       case 'correct':
+      case 'correctBig':
         this.brass(
           A_MAJ.map((n) => n + 12),
           t,
@@ -601,6 +691,7 @@ export class ShowAudio {
         }
         break;
       case 'ring':
+        if (this.hasSample('phone-ring')) break; // the real phone is layered in instead
         // A classic two-burst phone ringer.
         for (const burst of [0, 0.6]) {
           for (let i = 0; i < 8; i++) {
@@ -614,6 +705,36 @@ export class ShowAudio {
             });
           }
         }
+        break;
+    }
+  }
+
+  /** The studio audience and other real recordings that accompany a synthesized cue. */
+  private layerRecordings(name: SoundName): void {
+    switch (name) {
+      case 'intro':
+        this.sample('applause-medium', { delay: 1.2, duration: 7, gain: 0.5, fadeOut: 2 });
+        break;
+      case 'correct':
+        this.sample('applause-small', { delay: 0.2, duration: 3.2, gain: 0.4, fadeOut: 1.2 });
+        break;
+      case 'correctBig':
+        this.sample('applause-medium', { delay: 0.2, duration: 5, gain: 0.5, fadeOut: 1.6 });
+        break;
+      case 'safe':
+        this.sample('applause-big', { delay: 0.6, duration: 7, gain: 0.55, fadeOut: 2 });
+        break;
+      case 'win':
+        this.sample('cheer', { delay: 1.6, gain: 0.6 });
+        this.sample('applause-big', { delay: 1.7, gain: 0.65, fadeOut: 3 });
+        break;
+      case 'walk':
+        this.sample('applause-medium', { delay: 0.3, duration: 5, gain: 0.45, fadeOut: 1.8 });
+        break;
+      case 'ring':
+        this.sample('phone-ring', { duration: 2.8, gain: 0.7, fadeOut: 0.3 });
+        break;
+      default:
         break;
     }
   }
@@ -750,8 +871,9 @@ export class ShowAudio {
     gain.gain.setTargetAtTime(1, ctx.currentTime, 0.4);
     gain.connect(this.music);
 
-    if (this.overrides.has(`bed:${name}`)) {
-      void this.buffer(`bed:${name}`).then((buf) => {
+    const bedOverride = this.overrides.get(`bed:${name}`);
+    if (bedOverride) {
+      void this.buffer(`bed:${name}`, bedOverride).then((buf) => {
         if (buf && this.bed?.gain === gain) this.bedSource = this.playBuffer(buf, true, gain);
       });
       this.bed = { name, gain, def: { bpm: 60, onStep: () => {} }, step: 0, next: ctx.currentTime };

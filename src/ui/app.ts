@@ -1,8 +1,10 @@
 import { ShowAudio } from '../audio/engine.ts';
 import { Voice } from '../audio/voice.ts';
 import type { Game } from '../game/engine.ts';
+import { formatPrize } from '../game/ladder.ts';
 import { loadQuestionBank, type QuestionBank } from '../game/questions.ts';
 import type { ModeId } from '../game/types.ts';
+import { HOST } from '../show/script.ts';
 import { loadSettings, saveSettings, type Settings } from '../storage/stats.ts';
 import { Confetti } from './components/confetti.ts';
 import { logoMark } from './components/logo.ts';
@@ -29,8 +31,8 @@ export class App {
     const settings = loadSettings();
     this.audio = new ShowAudio({ muted: settings.muted, music: settings.music });
     this.audio.setVolume(settings.volume);
-    this.voice = new Voice(settings.voice && !settings.muted);
-    void this.audio.loadOverrides(import.meta.env.BASE_URL);
+    this.voice = new Voice(settings.voice && !settings.muted, settings.voiceName);
+    void this.audio.loadRecordings(import.meta.env.BASE_URL);
 
     this.muteButton = h('button', {
       type: 'button',
@@ -258,6 +260,7 @@ export class App {
         { class: 'settings' },
         h('label', { class: 'settings__volume' }, '🔊 Сила на звука', volume),
         toggle('music', '🎵 Музика', null, (on) => this.audio.setMusic(on)),
+        noVoice ? null : this.voicePicker(),
         toggle(
           'voice',
           '🎙️ Гласът на водещия',
@@ -283,5 +286,61 @@ export class App {
       ),
       actions: [{ label: 'Готово', variant: 'primary' }],
     });
+  }
+
+  /** A dropdown of the browser's Bulgarian voices with a "listen" button. */
+  private voicePicker(): HTMLElement {
+    const preferred = loadSettings().voiceName;
+    const select = h(
+      'select',
+      {
+        class: 'select',
+        'aria-label': 'Глас на водещия',
+        onChange: () => {
+          this.voice.setPreferred(select.value);
+          saveSettings({ voiceName: select.value });
+          void listen();
+        },
+      },
+      h('option', { value: '' }, `Автоматично (${this.voice.voices[0]?.label ?? '—'})`),
+      this.voice.voices.map((v) =>
+        h(
+          'option',
+          { value: v.name, selected: v.name === preferred },
+          `${v.natural ? '✨ ' : ''}${v.label}`,
+        ),
+      ),
+    );
+    const listen = async () => {
+      const wasEnabled = this.voice.enabled;
+      this.voice.enabled = true;
+      await this.voice.speak(
+        `Добър вечер! Аз съм ${HOST.name}. Въпрос за ${formatPrize(1_000_000)}.`,
+      );
+      this.voice.enabled = wasEnabled;
+    };
+    const best = this.voice.voices[0];
+    return h(
+      'div',
+      { class: 'settings__voice' },
+      h('span', { class: 'settings__label' }, '🗣️ Глас'),
+      h(
+        'div',
+        { class: 'settings__row' },
+        select,
+        h(
+          'button',
+          { type: 'button', class: 'btn btn--ghost btn--sm', onClick: () => void listen() },
+          '▶ Чуй',
+        ),
+      ),
+      best && !best.natural
+        ? h(
+            'small',
+            { class: 'settings__hint' },
+            'За най-естествен глас отвори играта в Microsoft Edge (гласът „Borislav Natural“).',
+          )
+        : null,
+    );
   }
 }

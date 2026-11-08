@@ -1,3 +1,4 @@
+import type { SampleHandle } from '../../audio/engine.ts';
 import { Game } from '../../game/engine.ts';
 import { formatPrize, LEVEL_COUNT, prizeForLevel } from '../../game/ladder.ts';
 import { ANSWER_LETTERS, FRIENDS, LIFELINES, type Friend } from '../../game/lifelines.ts';
@@ -67,6 +68,8 @@ export function gameScreen(ctx: AppContext, modeId: ModeId, categories: string[]
   let seq = 0;
   let skipRequested = false;
   let idleTimer = 0;
+  /** The drum roll playing while a big answer is locked. */
+  let drum: SampleHandle | null = null;
 
   const readAloud = () => settings.readQuestions && ctx.voice.enabled && ctx.voice.available;
   const tier = () => tierOf(game.level);
@@ -430,7 +433,12 @@ export function gameScreen(ctx: AppContext, modeId: ModeId, categories: string[]
       await say('suspense', {}, 'tense');
       if (!still(mySeq)) return;
     }
-    await wait(suspenseFor(game.level));
+    // From question 10 on, a real drum roll builds up to the reveal.
+    if (game.level >= 10)
+      drum = ctx.audio.sample('drumroll', { loop: true, gain: 0.5, fadeIn: 0.8 });
+    await wait(suspenseFor(game.level) + (drum ? 1400 : 0));
+    drum?.stop(0.06);
+    drum = null;
     if (!still(mySeq)) return;
 
     const correct = game.reveal();
@@ -468,7 +476,7 @@ export function gameScreen(ctx: AppContext, modeId: ModeId, categories: string[]
     }
 
     ctx.stage('correct', tier());
-    ctx.audio.play(reachedSafeHaven ? 'safe' : 'correct');
+    ctx.audio.play(reachedSafeHaven ? 'safe' : game.level >= 10 ? 'correctBig' : 'correct');
     if (reachedSafeHaven) ctx.confetti.burst(90, 0.5, 0.4);
     ctx.announce(`Верен отговор! Печелиш ${formatPrize(game.currentPrize)}.`);
 
@@ -666,6 +674,7 @@ export function gameScreen(ctx: AppContext, modeId: ModeId, categories: string[]
     ctx.announce(`${friend.name}: ${result.call.message}`);
     await host.say(result.call.message, {
       speaker: `${friend.avatar} ${friend.name}`,
+      role: friend.gender,
       pitch: FRIEND_PITCH.get(friend.name) ?? 1,
     });
     call.end();
@@ -687,8 +696,8 @@ export function gameScreen(ctx: AppContext, modeId: ModeId, categories: string[]
         'p',
         null,
         game.answered > 0
-          ? ['Тръгваш си с ', h('strong', { class: 'gold' }, amount), '. Сигурен ли си?']
-          : 'Още не си спечелил нищо. Ако се откажеш сега, си тръгваш с 0 €.',
+          ? ['Тръгваш си с ', h('strong', { class: 'gold' }, amount), '. Окончателно ли е?']
+          : 'Все още нямаш печалба. Ако спреш сега, си тръгваш с 0 €.',
       ),
       actions: [
         { label: 'Продължавам', variant: 'ghost' },
@@ -822,6 +831,7 @@ export function gameScreen(ctx: AppContext, modeId: ModeId, categories: string[]
       timer?.stop();
       clearTimeout(idleTimer);
       host.stop();
+      drum?.stop();
       closeModal?.();
       document.removeEventListener('keydown', onKeyDown);
     },
