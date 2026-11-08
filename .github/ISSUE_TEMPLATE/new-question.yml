@@ -1,0 +1,76 @@
+name: 💡 Предложи въпрос
+description: Имаш добър въпрос за играта? Добави го тук.
+title: '[Въпрос] '
+labels: ['въпрос']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Благодарим! Провери дали отговорът е верен и не зависи от времето (напр. „кой е президент в момента“).
+  - type: dropdown
+    id: category
+    attributes:
+      label: Категория
+      options:
+        - История
+        - География
+        - Наука и природа
+        - Изкуство и литература
+        - Спорт
+        - Кино и музика
+        - България
+        - Обща култура
+        - Животни
+        - Технологии
+        - Митология
+        - Кухня
+        - Езикът ни
+    validations:
+      required: true
+  - type: dropdown
+    id: difficulty
+    attributes:
+      label: Трудност
+      options:
+        - '1 – много лесен'
+        - '2 – лесен'
+        - '3 – среден'
+        - '4 – труден'
+        - '5 – експертен'
+    validations:
+      required: true
+  - type: input
+    id: question
+    attributes:
+      label: Въпрос
+      placeholder: Коя е най-дългата река в Европа?
+    validations:
+      required: true
+  - type: input
+    id: correct
+    attributes:
+      label: Верен отговор
+      placeholder: Волга
+    validations:
+      required: true
+  - type: textarea
+    id: wrong
+    attributes:
+      label: Три грешни отговора
+      description: По един на ред.
+      placeholder: |
+        Дунав
+        Рейн
+        Днепър
+    validations:
+      required: true
+  - type: textarea
+    id: explanation
+    attributes:
+      label: Интересен факт (по желание)
+      description: Показва се след отговора.
+  - type: input
+    id: source
+    attributes:
+      label: Източник
+      description: Линк, който потвърждава отговора.

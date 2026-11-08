@@ -1,0 +1,21 @@
+name: 🐞 Нещо не работи
+description: Грешка в играта или грешен отговор на въпрос.
+title: '[Бъг] '
+labels: ['бъг']
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: Какво се случи?
+      description: Ако става дума за въпрос, напиши неговото id (напр. hist-014) или текста му.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Какво очакваше?
+  - type: input
+    id: browser
+    attributes:
+      label: Браузър и устройство
+      placeholder: Chrome на Android, Edge на Windows…
