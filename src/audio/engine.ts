@@ -248,20 +248,25 @@ export class ShowAudio {
       env.gain.exponentialRampToValueAtTime(gain, t0 + fadeIn);
       src.connect(env).connect(this.sfx);
 
+      // start() must come before any stop() call, or the browser throws.
+      src.start(t0);
       const length = duration ?? (loop ? null : buffer.duration);
       if (length !== null) {
         env.gain.setValueAtTime(gain, t0 + Math.max(fadeIn, length - fadeOut));
         env.gain.exponentialRampToValueAtTime(0.0001, t0 + length);
         src.stop(t0 + length + 0.05);
       }
-      src.start(t0);
 
       stopNow = (fade) => {
         const now = ctx.currentTime;
         env.gain.cancelScheduledValues(now);
         env.gain.setValueAtTime(Math.max(env.gain.value, 0.0001), now);
         env.gain.exponentialRampToValueAtTime(0.0001, now + fade);
-        src.stop(now + fade + 0.05);
+        try {
+          src.stop(now + fade + 0.05);
+        } catch {
+          /* already stopped */
+        }
       };
     });
     return handle;
