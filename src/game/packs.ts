@@ -10,9 +10,9 @@ import type { AnswerIndex, Difficulty, Question } from './types.ts';
 export type Visibility = 'private' | 'link' | 'public';
 
 export const VISIBILITY: Record<Visibility, { icon: string; name: string; hint: string }> = {
-  private: { icon: '🔒', name: 'Личен', hint: 'Виждаш го само ти.' },
-  link: { icon: '🔗', name: 'С линк', hint: 'Всеки с линка може да го играе.' },
-  public: { icon: '🌍', name: 'Публичен', hint: 'Показва се в „Пакети на играчите“.' },
+  private: { icon: 'lock', name: 'Личен', hint: 'Виждаш го само ти.' },
+  link: { icon: 'link', name: 'С линк', hint: 'Всеки с линка може да го играе.' },
+  public: { icon: 'globe', name: 'Публичен', hint: 'Показва се в „Пакети на играчите“.' },
 };
 
 export const PACK_LIMITS = {
@@ -155,7 +155,7 @@ export function parseQuestions(raw: unknown): PackQuestion[] {
 export function packToBank(pack: Pick<Pack, 'id' | 'title' | 'questions'>): QuestionBank {
   const category = `pack-${pack.id}`;
   return {
-    categories: [{ id: category, name: pack.title, icon: '📝', file: '' }],
+    categories: [{ id: category, name: pack.title, icon: 'notebook-pen', file: '' }],
     questions: pack.questions.map((q, i): Question & { category: string } => ({
       ...cleanQuestion(q),
       id: `pack-${pack.id}-${i + 1}`.toLowerCase().replace(/[^a-z0-9-]/g, ''),

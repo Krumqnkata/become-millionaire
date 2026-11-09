@@ -14,6 +14,17 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == data.ownerId;
     }
 
+    // Admins are listed by hand in the console: a document admins/{uid}.
+    function isAdmin() {
+      return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // Prizes on the ladder (0 = nothing won).
+    function validPrize(p) {
+      return p in [0, 100, 200, 300, 500, 1000, 2500, 5000, 10000, 20000, 40000,
+                   75000, 150000, 250000, 500000, 1000000];
+    }
+
     function text(value, min, max) {
       return value is string && value.size() >= min && value.size() <= max;
     }
@@ -40,7 +51,8 @@ service cloud.firestore {
 
     match /packs/{packId} {
       // Opening a pack by id: shared ones (public or "anyone with the link") and your own.
-      allow get: if resource.data.visibility in ['public', 'link'] || isOwner(resource.data);
+      allow get: if resource.data.visibility in ['public', 'link'] || isOwner(resource.data)
+        || isAdmin();
       // Listing: only the public catalogue and your own packs, so link-only packs can't be found.
       allow list: if resource.data.visibility == 'public' || isOwner(resource.data);
 
@@ -53,7 +65,7 @@ service cloud.firestore {
         && validPack(request.resource.data)
         && request.resource.data.createdAt == resource.data.createdAt;
 
-      allow delete: if isOwner(resource.data);
+      allow delete: if isOwner(resource.data) || isAdmin();
     }
 
     // Players can report a pack; only the project owner reads reports (in the console).
@@ -65,7 +77,71 @@ service cloud.firestore {
         && text(request.resource.data.packId, 1, 128)
         && text(request.resource.data.reason, 1, 500)
         && request.resource.data.createdAt == request.time;
-      allow read, update, delete: if false;
+      allow read, delete: if isAdmin();
+      allow update: if false;
+    }
+
+    match /admins/{uid} {
+      // Lets the app ask "am I an admin?"; nobody can make themselves one.
+      allow get: if signedIn() && request.auth.uid == uid;
+      allow list, write: if false;
+    }
+
+    // A player's settings, statistics and personal Hall of Fame. Private to them.
+    match /users/{uid} {
+      allow read, delete: if signedIn() && request.auth.uid == uid;
+      allow write: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['settings', 'stats', 'hallOfFame', 'updatedAt'])
+        && request.resource.data.settings is map
+        && request.resource.data.stats is map
+        && request.resource.data.hallOfFame is list
+        && request.resource.data.hallOfFame.size() <= 10
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    // Each player's best result per mode: leaderboard/{uid}_{mode}. Everyone can read it.
+    // Results come from the browser, so admins can remove fakes.
+    match /leaderboard/{entryId} {
+      allow read: if true;
+      allow create, update: if signedIn()
+        && entryId == request.auth.uid + '_' + request.resource.data.mode
+        && request.resource.data.keys().hasOnly(['uid', 'name', 'prize', 'mode', 'level', 'updatedAt'])
+        && request.resource.data.uid == request.auth.uid
+        && text(request.resource.data.name, 1, 24)
+        && request.resource.data.mode in ['easy', 'normal', 'hard', 'expert']
+        && validPrize(request.resource.data.prize)
+        && request.resource.data.prize > 0
+        && request.resource.data.level is int
+        && request.resource.data.level >= 0 && request.resource.data.level <= 15
+        && request.resource.data.updatedAt == request.time
+        // Only improvements replace a result.
+        && (resource == null || request.resource.data.prize > resource.data.prize);
+      allow delete: if isAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
+    }
+
+    // The official questions, one document per category. Anyone reads, admins edit.
+    // As with packs, each question is validated by the app (rules can't loop over lists).
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow delete: if isAdmin();
+      allow create, update: if isAdmin()
+        && categoryId.matches('^[a-z0-9]+(-[a-z0-9]+)*$')
+        && request.resource.data.keys().hasOnly(['name', 'icon', 'order', 'questions', 'updatedAt'])
+        && text(request.resource.data.name, 1, 60)
+        && text(request.resource.data.icon, 1, 40)
+        && request.resource.data.order is int
+        && request.resource.data.questions is list
+        && request.resource.data.questions.size() <= 1000
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    // meta/bank: when the questions last changed, so browsers know to refresh their copy.
+    match /meta/{docId} {
+      allow read: if true;
+      allow write: if isAdmin()
+        && docId == 'bank'
+        && request.resource.data.keys().hasOnly(['updatedAt'])
+        && request.resource.data.updatedAt == request.time;
     }
   }
 }

@@ -329,10 +329,6 @@ body[data-stage='lock'] .answer:not(.is-locked) {
   transform: translateY(-2px);
 }
 
-.friend__avatar {
-  font-size: 1.6rem;
-}
-
 .friend__name {
   font-weight: 800;
 }

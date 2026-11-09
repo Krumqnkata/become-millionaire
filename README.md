@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://krumqnkata.github.io/become-millionaire/"><b>🎮 Играй сега</b></a> ·
+  <a href="https://patyat-kam-miliona.web.app/"><b>🎮 Играй сега</b></a> ·
   <a href="#-как-се-играе">Как се играе</a> ·
   <a href="#-добави-въпрос">Добави въпрос</a> ·
   <a href="#-локално-стартиране">Разработка</a> ·
@@ -38,7 +38,7 @@
 | 🃏  | **4 жокера**        | 50:50, „Питай публиката“ с гласуване на живо, „Обади се на приятел“ с избор кого да потърсиш и 30 секунди разговор, „Смени въпроса“.                                                                                                                                                                         |
 | 💡  | **Студио**          | Прожектори, които се движат по-бързо с наближаването на милиона, затъмняване при заключен отговор, зелена или червена светлина при отговора, конфети.                                                                                                                                                        |
 | 💰  | **Вземи парите**    | Спри когато искаш. После водещият те пита какво щеше да отговориш и ти показва дали щеше да познаеш.                                                                                                                                                                                                         |
-| 🏆  | **Зала на славата** | Топ 10 и статистика, пазят се локално в браузъра.                                                                                                                                                                                                                                                            |
+| 🏆  | **Зала на славата** | Обща класация на всички играчи, лична Зала на славата и статистика, която следва профила ти.                                                                                                                                                                                                                 |
 | 📝  | **Твои въпроси**    | Влез с Google, направи свой пакет с поне 15 въпроса и го играй или го прати на приятели с линк. Публичните пакети се виждат от всички в „Пакети на играчите“.                                                                                                                                                |
 | 📱  | **Навсякъде**       | Работи на телефон, с клавиатура и с екранен четец, минава на цял екран при първото кликване и спазва `prefers-reduced-motion`.                                                                                                                                                                               |
 
@@ -160,32 +160,32 @@
 
 Azure връща само приблизително кога започва всяка фраза, а след числа може да сгреши с до 2 секунди. Затова скриптът намира паузите в самото аудио и реже по тях. Ако някога промениш логиката за рязане, `npm run voice -- --retrim` ще нареже наново вече записаните файлове, без Azure.
 
-## 📝 Акаунти и твои въпроси (Firebase)
+## 📝 Акаунти, твои въпроси и администрация (Firebase)
 
-Играчите влизат с Google и правят свои пакети с въпроси. Пакетите се пазят във [Firebase](https://firebase.google.com) (Firestore), а играта ги играе със същия двигател, жокери и водещ. Всеки пакет е **личен**, **с линк** (`?pack=<id>`) или **публичен**. Споделят се само пакети с поне 15 въпроса, а в редактора може да се внесе и изнесе JSON във формата на въпросите от играта. Игрите с пакети на играчите не влизат в Залата на славата.
+Сайтът живее във [Firebase](https://firebase.google.com): хостинг, акаунти и база данни (Firestore).
 
-Без настройки сайтът работи както преди, просто без акаунти. Безплатният план на Firebase (Spark) стига: 50 000 прочитания на ден, а един пакет се чете с една заявка.
+- **Вход** с Google или с имейл и парола (с регистрация и „Забравена парола“).
+- **Прогресът следва профила.** Настройките, статистиката и личната Зала на славата се пазят в акаунта и се сливат с тези от браузъра при вход.
+- **Обща класация.** Най-добрият резултат на всеки играч за всеки режим. Правилата приемат само истински суми от стълбата и само подобрения, а администраторите могат да махат фалшиви резултати.
+- **Твои въпроси.** Пакети, които са лични, с линк (`?pack=<id>`) или публични. Споделят се само пакети с поне 15 въпроса. В редактора може да се внесе и изнесе JSON. Тези игри не влизат в класациите.
+- **Официалните въпроси** са във Firestore, по един документ на категория. Браузърът ги кешира и при всяко посещение прави само едно малко четене (`meta/bank`), освен ако нещо е променено. Ако базата е празна или недостъпна, играта ползва JSON файловете в `public/questions/`.
+- **Администрация** (бутон в „Мои въпроси“). Редакция, добавяне и триене на въпроси и категории, търсене и преглед на докладваните пакети. Администратор е всеки, за когото има документ `admins/<uid>` във Firestore. Създава се на ръка в конзолата, а `uid` се вижда в Authentication → Users.
 
-**Настройка (веднъж):**
+Записаният глас е за въпросите в репото. След промени от администрацията `npm run questions:pull` сваля въпросите от базата в `public/questions/`, а после `npm run voice` записва само новото. Дотогава новите и променените въпроси се четат с гласа на браузъра.
 
-1. В [console.firebase.google.com](https://console.firebase.google.com) създай проект (Analytics не трябва).
-2. **Authentication → Sign-in method → Google → Enable**.
+Всичко се побира в безплатния план (Spark): 50 000 четения на ден. Правилата за достъп в [`firestore.rules`](firestore.rules) имат собствени тестове (`npm run test:rules`).
+
+**Настройка на нов проект (веднъж):**
+
+1. В [console.firebase.google.com](https://console.firebase.google.com) създай проект.
+2. **Authentication → Sign-in method**: включи **Google** и **Email/Password**.
 3. **Firestore Database → Create database**, локация `eur3 (Europe)`, режим _production_.
-4. **Project settings → Your apps → Web (`</>`)**. От показания `firebaseConfig` копирай четирите стойности в `.env.local`:
-   ```bash
-   VITE_FIREBASE_API_KEY=...
-   VITE_FIREBASE_AUTH_DOMAIN=...
-   VITE_FIREBASE_PROJECT_ID=...
-   VITE_FIREBASE_APP_ID=...
-   ```
-   Тези стойности не са тайни: данните се пазят от правилата в [`firestore.rules`](firestore.rules).
-5. **Authentication → Settings → Authorized domains**: добави `krumqnkata.github.io` (`localhost` е там по подразбиране).
-6. Качи правилата и индексите: `npx firebase login`, `npx firebase use --add` (избери проекта) и `npm run firebase:deploy`.
-7. За живия сайт добави същите четири стойности в GitHub: **Settings → Secrets and variables → Actions → Variables** с имена `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_PROJECT_ID`, `FIREBASE_APP_ID`. Следващият деплой ги вгражда.
+4. **Project settings → Your apps → Web (`</>`)**. Сложи `apiKey`, `authDomain`, `projectId` и `appId` в `.env.local` като `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID` и `VITE_FIREBASE_APP_ID`. Не са тайни: данните пазят правилата.
+5. **Authentication → Settings → Authorized domains**: добави домейна на сайта (тук `patyat-kam-miliona.web.app`).
+6. `npx firebase login`, `npx firebase use --add`, `npm run firebase:deploy` (правила и индекси) и `npm run deploy` (сайтът).
+7. Влез в сайта, вземи своя `uid` от Authentication → Users и създай документ `admins/<uid>` във Firestore. После в „Администрация“ натисни „Качи въпросите в базата“.
 
-**Локално без истински проект:** `npm run emulators` в един терминал и `npm run dev:cloud` в друг. Акаунтите и базата са локалните емулатори на Firebase (трябва Java 21+). Правилата за достъп имат собствени тестове: `npm run test:rules`.
-
-Докладваните пакети се виждат във Firestore, в колекцията `reports`. Пакет се сваля, като се изтрие от конзолата.
+**Локално без истински проект:** `npm run emulators` в един терминал и `npm run dev:cloud` в друг (трябва Java 21+).
 
 ## 🛠 Локално стартиране
 
@@ -198,20 +198,22 @@ npm install
 npm run dev
 ```
 
-| Скрипт                    | Какво прави                                             |
-| ------------------------- | ------------------------------------------------------- |
-| `npm run dev`             | Сървър за разработка с hot reload.                      |
-| `npm run build`           | Проверка на типовете и production build в `dist/`.      |
-| `npm run preview`         | Пуска production build-а локално.                       |
-| `npm test`                | Unit тестове с Vitest.                                  |
-| `npm run validate`        | Проверка на всички въпроси.                             |
-| `npm run lint`            | ESLint.                                                 |
-| `npm run format`          | Prettier.                                               |
-| `npm run check`           | Lint, типове, въпроси и тестове наведнъж.               |
-| `npm run dev:cloud`       | Сървър за разработка с акаунтите в локалните емулатори. |
-| `npm run emulators`       | Локалните емулатори на Firebase (акаунти и база).       |
-| `npm run test:rules`      | Тестове на правилата за достъп до базата.               |
-| `npm run firebase:deploy` | Качва правилата и индексите във Firebase.               |
+| Скрипт                    | Какво прави                                                |
+| ------------------------- | ---------------------------------------------------------- |
+| `npm run dev`             | Сървър за разработка с hot reload.                         |
+| `npm run build`           | Проверка на типовете и production build в `dist/`.         |
+| `npm run preview`         | Пуска production build-а локално.                          |
+| `npm test`                | Unit тестове с Vitest.                                     |
+| `npm run validate`        | Проверка на всички въпроси.                                |
+| `npm run lint`            | ESLint.                                                    |
+| `npm run format`          | Prettier.                                                  |
+| `npm run check`           | Lint, типове, въпроси и тестове наведнъж.                  |
+| `npm run dev:cloud`       | Сървър за разработка с акаунтите в локалните емулатори.    |
+| `npm run emulators`       | Локалните емулатори на Firebase (акаунти и база).          |
+| `npm run test:rules`      | Тестове на правилата за достъп до базата.                  |
+| `npm run firebase:deploy` | Качва правилата и индексите във Firebase.                  |
+| `npm run deploy`          | Build и качване на сайта във Firebase Hosting.             |
+| `npm run questions:pull`  | Сваля официалните въпроси от базата в `public/questions/`. |
 
 ## 🧠 Как е направено
 
@@ -231,7 +233,7 @@ src/
 ├── audio/
 │   ├── engine.ts      синтезатор, музика и звуци (Web Audio API)
 │   └── voice.ts       гласът на водещия (Speech Synthesis API)
-├── cloud/       акаунти и пакети (Firebase, зарежда се само при нужда)
+├── cloud/       Firebase: акаунти, пакети, класация, синхронизация, въпроси от базата
 ├── storage/stats.ts   настройки, статистика, Зала на славата
 ├── ui/                екрани и компоненти
 └── styles/            CSS: токени, компоненти, студио
@@ -262,11 +264,9 @@ stateDiagram-v2
 
 ## 🚀 Деплой
 
-Всеки push в `main` пуска [`deploy.yml`](.github/workflows/deploy.yml): lint, проверка на въпросите, тестове, build и публикуване в GitHub Pages. Pull request-ите минават през същите проверки в [`ci.yml`](.github/workflows/ci.yml).
+Сайтът е на **Firebase Hosting**: https://patyat-kam-miliona.web.app. Всеки push в `main` пуска [`deploy.yml`](.github/workflows/deploy.yml). Той прави lint, проверка на въпросите, тестове (и на правилата за достъп), build и качване във Firebase. Pull request-ите минават през същите проверки в [`ci.yml`](.github/workflows/ci.yml). Старият адрес в GitHub Pages само препраща към новия и запазва линковете към пакети.
 
-Ако в GitHub има променливите `FIREBASE_*` (виж по-горе), build-ът включва акаунтите. Без тях сайтът е без акаунти.
-
-Base path-ът е `/become-millionaire/`. За друг хостинг го смени с `BASE_PATH=/ npm run build`.
+За автоматичното качване трябва secret `FIREBASE_SERVICE_ACCOUNT_STANI_BOGAT`. Създава се с `npx firebase init hosting:github`; генерираните от него workflow файлове не ти трябват. Без него сайтът се качва ръчно с `npm run deploy`. Настройките на Firebase идват от GitHub променливите `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_PROJECT_ID` и `FIREBASE_APP_ID`.
 
 ## ⚖️ Бележка
 
@@ -282,4 +282,4 @@ Base path-ът е `/become-millionaire/`. За друг хостинг го см
 
 **The Road to the Million** is a TV-style quiz show that runs in the browser, in Bulgarian. A virtual host introduces you, reads every question aloud through the browser's speech synthesis, asks “Final answer?” and keeps you waiting while the lights dim. Climb 15 questions to €1,000,000 with four lifelines (50:50, ask the audience, phone a friend, switch the question) across four difficulty modes. The bank has 547 questions in 13 categories.
 
-Under the hood it is strict TypeScript and Vite with no UI framework. The game logic is a framework-free state machine with unit tests. The whole soundtrack is synthesized live with the Web Audio API. Questions are plain JSON, validated in CI. Players can sign in with Google and build their own question packs, stored in Firebase (Firestore) and shared by link; the security rules have their own emulator tests. Run it with `npm install && npm run dev`.
+Under the hood it is strict TypeScript and Vite with no UI framework. The game logic is a framework-free state machine with unit tests. The whole soundtrack is synthesized live with the Web Audio API. Questions are plain JSON, validated in CI. It runs on Firebase: Hosting, Auth (Google or e-mail) and Firestore. Players' progress follows their account, there is a global leaderboard, players build and share their own question packs, and the official questions are edited in an admin panel and cached in the browser. The security rules have their own emulator tests. Run it with `npm install && npm run dev`.

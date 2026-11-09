@@ -1,5 +1,7 @@
 import { ANSWER_LETTERS, FRIENDS, type Friend } from '../../game/lifelines.ts';
 import { h, prefersReducedMotion, wait } from '../dom.ts';
+import { icon } from '../icons.ts';
+import { friendAvatar } from './marks.ts';
 
 const CATEGORY_HINTS: Record<string, string> = {
   history: 'история',
@@ -41,7 +43,7 @@ export function audiencePanel(hidden: ReadonlySet<number>): AudienceView {
       h('span', { class: 'poll__letter' }, ANSWER_LETTERS[i]),
     );
   });
-  const title = h('h3', { class: 'panel__title' }, '👥 Публиката гласува…');
+  const title = h('h3', { class: 'panel__title' }, 'Публиката гласува…');
   const poll = h('div', { class: 'poll', role: 'img', 'aria-label': 'Гласуване' }, cols);
   const el = h(
     'section',
@@ -69,7 +71,7 @@ export function audiencePanel(hidden: ReadonlySet<number>): AudienceView {
         cols[i]!.classList.toggle('is-top', v === top);
       });
       el.classList.remove('is-voting');
-      title.textContent = '👥 Публиката гласува';
+      title.textContent = 'Публиката гласува';
       poll.setAttribute(
         'aria-label',
         votes.map((v, i) => `${ANSWER_LETTERS[i]}: ${v}%`).join(', '),
@@ -85,7 +87,7 @@ export function friendPicker(onPick: (friend: Friend) => void): HTMLElement {
   return h(
     'section',
     { class: 'panel panel--friends', 'aria-label': 'Избери приятел' },
-    h('h3', { class: 'panel__title' }, '📞 На кого да се обадим?'),
+    h('h3', { class: 'panel__title' }, 'На кого да се обадим?'),
     h(
       'div',
       { class: 'friends' },
@@ -93,13 +95,13 @@ export function friendPicker(onPick: (friend: Friend) => void): HTMLElement {
         h(
           'button',
           { type: 'button', class: 'friend', onClick: () => onPick(friend) },
-          h('span', { class: 'friend__avatar', 'aria-hidden': 'true' }, friend.avatar),
+          friendAvatar(friend, 'friend__avatar'),
           h('span', { class: 'friend__name' }, friend.name),
           h('span', { class: 'friend__role' }, friend.role),
           h(
             'span',
             { class: 'friend__tags' },
-            '★ ',
+            icon('star'),
             friend.expertise.map((c) => CATEGORY_HINTS[c] ?? c).join(', '),
           ),
         ),
@@ -136,11 +138,11 @@ export function callPanel(friend: Friend): CallView {
   const el = h(
     'section',
     { class: 'panel panel--call is-ringing', 'aria-label': `Обаждане на ${friend.name}` },
-    h('h3', { class: 'panel__title' }, '📞 Разговор', clock),
+    h('h3', { class: 'panel__title' }, 'Разговор', clock),
     h(
       'div',
       { class: 'call' },
-      h('div', { class: 'call__avatar', 'aria-hidden': 'true' }, friend.avatar),
+      friendAvatar(friend, 'call__avatar'),
       h(
         'div',
         { class: 'call__body' },

@@ -1,6 +1,7 @@
 import { formatPrize, PRIZES } from '../../game/ladder.ts';
 import type { GameMode } from '../../game/types.ts';
 import { h } from '../dom.ts';
+import { icon } from '../icons.ts';
 
 export interface LadderView {
   el: HTMLElement;
@@ -24,7 +25,7 @@ export function createLadder(mode: GameMode): LadderView {
         ? h(
             'span',
             { class: 'ladder__badge', title: 'Сигурна сума', 'aria-label': 'сигурна сума' },
-            '🔒',
+            icon('lock'),
           )
         : null,
     );

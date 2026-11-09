@@ -20,12 +20,24 @@ function read<T>(key: string, fallback: T, isValid: (v: unknown) => v is T): T {
   }
 }
 
+/** Keys whose changes are synced to the player's account. */
+const SYNCED = new Set(['settings', 'stats', 'hall-of-fame']);
+const listeners = new Set<() => void>();
+let silent = false;
+
 function write(key: string, value: unknown): void {
   try {
     localStorage.setItem(PREFIX + key, JSON.stringify(value));
   } catch {
     /* storage unavailable or full – ignore */
   }
+  if (SYNCED.has(key) && !silent) listeners.forEach((l) => l());
+}
+
+/** Called after settings, statistics or the Hall of Fame change. Returns an unsubscribe. */
+export function onProgressChange(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
 }
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
@@ -73,7 +85,10 @@ const DEFAULT_SETTINGS: Settings = {
 const bool = (value: unknown, fallback: boolean) => (typeof value === 'boolean' ? value : fallback);
 
 export function loadSettings(): Settings {
-  const stored = read('settings', {}, isRecord);
+  return parseSettings(read('settings', {}, isRecord));
+}
+
+function parseSettings(stored: Record<string, unknown>): Settings {
   return {
     muted: bool(stored.muted, DEFAULT_SETTINGS.muted),
     music: bool(stored.music, DEFAULT_SETTINGS.music),
@@ -115,7 +130,10 @@ export interface Stats {
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : 0);
 
 export function loadStats(): Stats {
-  const s = read('stats', {}, isRecord);
+  return parseStats(read('stats', {}, isRecord));
+}
+
+function parseStats(s: Record<string, unknown>): Stats {
   const bestByMode: Stats['bestByMode'] = {};
   if (isRecord(s.bestByMode)) {
     for (const [mode, value] of Object.entries(s.bestByMode))
@@ -173,9 +191,13 @@ const isEntry = (v: unknown): v is HallOfFameEntry =>
   typeof v.date === 'string';
 
 export function loadHallOfFame(): HallOfFameEntry[] {
-  const list = read('hall-of-fame', [], Array.isArray);
-  return (list as unknown[]).filter(isEntry).slice(0, HALL_OF_FAME_SIZE);
+  return parseHallOfFame(read('hall-of-fame', [], Array.isArray));
 }
+
+const parseHallOfFame = (list: unknown): HallOfFameEntry[] =>
+  Array.isArray(list)
+    ? (list as unknown[]).filter(isEntry).sort(byRank).slice(0, HALL_OF_FAME_SIZE)
+    : [];
 
 /** Sort by prize, then by date (earlier wins ties – they got there first). */
 const byRank = (a: HallOfFameEntry, b: HallOfFameEntry) =>
@@ -215,5 +237,74 @@ export function resetProgress(): void {
     for (const key of ['stats', 'hall-of-fame', 'recent']) localStorage.removeItem(PREFIX + key);
   } catch {
     /* ignore */
+  }
+  listeners.forEach((l) => l());
+}
+
+// ─── Account sync ────────────────────────────────────────────────────────────
+
+/** What is stored in the player's account (`users/{uid}`). */
+export interface Progress {
+  settings: Settings;
+  stats: Stats;
+  hallOfFame: HallOfFameEntry[];
+}
+
+export const loadProgress = (): Progress => ({
+  settings: loadSettings(),
+  stats: loadStats(),
+  hallOfFame: loadHallOfFame(),
+});
+
+/** Settings that belong to the device, not the player (voices and volume differ per device). */
+const DEVICE_SETTINGS = ['voiceName', 'volume', 'muted'] as const;
+
+/**
+ * Combines this browser's progress with the account's. The account's settings win
+ * (except device ones); statistics come from whichever side has played more;
+ * the Hall of Fame keeps the best entries of both.
+ */
+export function mergeProgress(local: Progress, remote: unknown): Progress {
+  if (!isRecord(remote)) return local;
+  const remoteSettings = isRecord(remote.settings) ? parseSettings(remote.settings) : null;
+  const settings = remoteSettings ? { ...remoteSettings } : local.settings;
+  for (const key of DEVICE_SETTINGS)
+    (settings as unknown as Record<string, unknown>)[key] = local.settings[key];
+
+  const remoteStats = isRecord(remote.stats) ? parseStats(remote.stats) : null;
+  const base =
+    remoteStats && remoteStats.gamesPlayed > local.stats.gamesPlayed ? remoteStats : local.stats;
+  const bestByMode = { ...local.stats.bestByMode };
+  for (const [mode, value] of Object.entries(remoteStats?.bestByMode ?? {}))
+    if (isModeId(mode)) bestByMode[mode] = Math.max(bestByMode[mode] ?? 0, value ?? 0);
+  const stats: Stats = {
+    ...base,
+    bestPrize: Math.max(local.stats.bestPrize, remoteStats?.bestPrize ?? 0),
+    bestByMode,
+  };
+
+  const seen = new Set<string>();
+  const hallOfFame = [...local.hallOfFame, ...parseHallOfFame(remote.hallOfFame)]
+    .filter((e) => {
+      const key = `${e.name}|${e.prize}|${e.date}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort(byRank)
+    .slice(0, HALL_OF_FAME_SIZE);
+
+  return { settings, stats, hallOfFame };
+}
+
+/** Writes progress that came from the account, without echoing it back. */
+export function applyProgress(progress: Progress): void {
+  silent = true;
+  try {
+    write('settings', progress.settings);
+    write('stats', progress.stats);
+    write('hall-of-fame', progress.hallOfFame);
+  } finally {
+    silent = false;
   }
 }

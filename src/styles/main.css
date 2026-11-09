@@ -1848,3 +1848,220 @@ th {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ==========================================================================
+   Icons (Lucide line icons instead of emoji)
+   ========================================================================== */
+
+.icon {
+  flex: none;
+  vertical-align: -0.14em;
+}
+
+.btn .icon {
+  width: 1.1em;
+  height: 1.1em;
+}
+
+.icon-btn .icon {
+  width: 20px;
+  height: 20px;
+}
+
+.icon-btn--sm .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.info__title {
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+}
+
+.info__title .icon {
+  color: var(--gold);
+  width: 0.9em;
+  height: 0.9em;
+}
+
+.chip .icon,
+.question__category .icon {
+  color: var(--gold);
+}
+
+.question__category {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mode__meta li {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.mark-row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  vertical-align: middle;
+}
+
+/* A lifeline's symbol: a disc with an icon, or "50:50" in small type. */
+.lifeline-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(77, 124, 255, 0.2);
+  color: var(--text);
+}
+
+.lifeline-mark .icon {
+  width: 15px;
+  height: 15px;
+}
+
+.lifeline-mark__text {
+  font: 800 0.95rem / 1 var(--font-display);
+}
+
+.mode__lifeline .lifeline-mark {
+  width: 24px;
+  height: 24px;
+}
+
+.lifeline__icon .icon {
+  width: 18px;
+  height: 18px;
+}
+
+.lifeline__icon .lifeline-mark__text {
+  font-size: 1.05rem;
+}
+
+/* Friends on the phone: initials on a colour of their own. */
+.person-avatar {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, hsl(var(--hue) 70% 62%), hsl(var(--hue) 60% 42%));
+  color: #fff;
+  font: 800 0.9rem var(--font-display);
+  letter-spacing: 0.02em;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.call__avatar.person-avatar {
+  width: 52px;
+  height: 52px;
+  font-size: 1.05rem;
+}
+
+.friend__tags {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* Ranking discs. */
+.rank {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--muted);
+  font: 800 0.9rem var(--font-display);
+}
+
+.rank--1 {
+  background: var(--gold-gradient);
+  color: #1a1404;
+}
+
+.rank--2 {
+  background: linear-gradient(135deg, #f1f4ff, #aab3cf);
+  color: #1c2238;
+}
+
+.rank--3 {
+  background: linear-gradient(135deg, #f3c39a, #b06b3a);
+  color: #2a1406;
+}
+
+.result__icon {
+  display: grid;
+  place-items: center;
+  width: 92px;
+  height: 92px;
+  margin: 0 auto;
+  border-radius: 50%;
+  background: rgba(245, 197, 66, 0.12);
+  color: var(--gold);
+  font-size: 1rem;
+  box-shadow: 0 0 0 1px rgba(245, 197, 66, 0.35);
+}
+
+.result__icon .icon {
+  width: 46px;
+  height: 46px;
+}
+
+.result--wrong .result__icon,
+.result--timeout .result__icon {
+  background: rgba(255, 77, 106, 0.12);
+  color: var(--red);
+  box-shadow: 0 0 0 1px rgba(255, 77, 106, 0.35);
+}
+
+.result__host .icon {
+  color: var(--gold);
+}
+
+.explanation {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.explanation .icon {
+  margin-top: 0.2em;
+  color: var(--gold);
+}
+
+/* Difficulty: five pips instead of stars. */
+.question__difficulty {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pip {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.pip.is-on {
+  background: var(--gold);
+}
+
+.choice__body strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}

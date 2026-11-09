@@ -8,23 +8,30 @@ import { logoMark } from '../components/logo.ts';
 import type { AppContext, Screen } from '../context.ts';
 import { h } from '../dom.ts';
 import { enterFullscreen } from '../fullscreen.ts';
+import { icon } from '../icons.ts';
+import { lifelineMark } from '../components/marks.ts';
 
 function modeDetails(mode: GameMode): HTMLElement {
   return h(
     'ul',
     { class: 'mode__meta' },
-    h('li', { title: 'Време за въпрос' }, '⏱ ', mode.timer ? `${mode.timer} s` : 'без таймер'),
+    h(
+      'li',
+      { title: 'Време за въпрос' },
+      icon('timer'),
+      mode.timer ? `${mode.timer} s` : 'без таймер',
+    ),
     h(
       'li',
       { title: 'Жокери' },
       mode.lifelines.map((id) =>
-        h('span', { class: 'mode__lifeline', title: LIFELINES[id].name }, LIFELINES[id].icon),
+        h('span', { class: 'mode__lifeline', title: LIFELINES[id].name }, lifelineMark(id)),
       ),
     ),
     h(
       'li',
       { title: 'Сигурни суми' },
-      '🔒 ',
+      icon('lock'),
       mode.safeHavens.length > 0 ? mode.safeHavens.map((l) => `${l}`).join(' и ') : 'няма',
     ),
   );
@@ -81,7 +88,7 @@ export function menuScreen(ctx: AppContext): Screen {
   const allChip = h(
     'button',
     { type: 'button', class: 'chip chip--all', onClick: () => setCategories(new Set()) },
-    '✨ Всички',
+    'Всички',
   );
   const chips = ctx.bank.categories.map((c) =>
     h(
@@ -97,7 +104,7 @@ export function menuScreen(ctx: AppContext): Screen {
           setCategories(next.size === known.size ? new Set() : next);
         },
       },
-      h('span', { 'aria-hidden': 'true' }, c.icon),
+      icon(c.icon),
       ` ${c.name} `,
       h('small', null, counts.get(c.id) ?? 0),
     ),
@@ -142,14 +149,14 @@ export function menuScreen(ctx: AppContext): Screen {
       },
     },
     'Към студиото',
-    h('span', { class: 'btn__arrow', 'aria-hidden': 'true' }, '→'),
+    icon('arrow-right', { class: 'btn__arrow' }),
   );
 
   // Voices load asynchronously; only nag when it is clear there is no Bulgarian voice.
   const voiceHint = h(
     'p',
     { class: 'hero__hint', hidden: true },
-    '🎙️ Този браузър няма български глас, затова водещият ще говори само в балончета. ',
+    'Този браузър няма български глас, затова водещият ще говори само в балончета. ',
     'За глас отвори играта в Microsoft Edge или на телефона си.',
   );
   void ctx.voice.ready.then(
@@ -200,25 +207,29 @@ export function menuScreen(ctx: AppContext): Screen {
       h(
         'button',
         { type: 'button', class: 'btn btn--ghost', onClick: () => ctx.go.rules() },
-        '📖 Правила',
+        icon('book-open'),
+        'Правила',
       ),
       h(
         'button',
         { type: 'button', class: 'btn btn--ghost', onClick: () => ctx.go.hallOfFame() },
-        '🏆 Зала на славата',
+        icon('trophy'),
+        'Зала на славата',
       ),
       cloud.enabled
         ? h(
             'button',
             { type: 'button', class: 'btn btn--ghost', onClick: () => ctx.go.myPacks() },
-            '📝 Мои въпроси',
+            icon('notebook-pen'),
+            'Мои въпроси',
           )
         : null,
       cloud.enabled
         ? h(
             'button',
             { type: 'button', class: 'btn btn--ghost', onClick: () => ctx.go.browse() },
-            '🌍 Пакети на играчите',
+            icon('globe'),
+            'Пакети на играчите',
           )
         : null,
     ),
@@ -227,7 +238,7 @@ export function menuScreen(ctx: AppContext): Screen {
           'p',
           { class: 'menu__stats' },
           `Изиграни игри: ${stats.gamesPlayed} · Най-голяма печалба: ${formatPrize(stats.bestPrize)}`,
-          stats.millions > 0 ? ` · Милиони: ${stats.millions} 💰` : '',
+          stats.millions > 0 ? ` · Милиони: ${stats.millions}` : '',
         )
       : null,
   );

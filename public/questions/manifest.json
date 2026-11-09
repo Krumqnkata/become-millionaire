@@ -3,79 +3,79 @@
     {
       "id": "history",
       "name": "История",
-      "icon": "🏛️",
+      "icon": "landmark",
       "file": "history.json"
     },
     {
       "id": "geography",
       "name": "География",
-      "icon": "🌍",
+      "icon": "earth",
       "file": "geography.json"
     },
     {
       "id": "science",
       "name": "Наука и природа",
-      "icon": "🔬",
+      "icon": "flask-conical",
       "file": "science.json"
     },
     {
       "id": "art",
       "name": "Изкуство и литература",
-      "icon": "🎨",
+      "icon": "palette",
       "file": "art.json"
     },
     {
       "id": "sport",
       "name": "Спорт",
-      "icon": "⚽",
+      "icon": "volleyball",
       "file": "sport.json"
     },
     {
       "id": "entertainment",
       "name": "Кино и музика",
-      "icon": "🎬",
+      "icon": "clapperboard",
       "file": "entertainment.json"
     },
     {
       "id": "bulgaria",
       "name": "България",
-      "icon": "🌹",
+      "icon": "flower",
       "file": "bulgaria.json"
     },
     {
       "id": "general",
       "name": "Обща култура",
-      "icon": "💡",
+      "icon": "lightbulb",
       "file": "general.json"
     },
     {
       "id": "animals",
       "name": "Животни",
-      "icon": "🦁",
+      "icon": "paw-print",
       "file": "animals.json"
     },
     {
       "id": "tech",
       "name": "Технологии",
-      "icon": "💻",
+      "icon": "cpu",
       "file": "tech.json"
     },
     {
       "id": "myth",
       "name": "Митология",
-      "icon": "⚡",
+      "icon": "zap",
       "file": "myth.json"
     },
     {
       "id": "food",
       "name": "Кухня",
-      "icon": "🍲",
+      "icon": "chef-hat",
       "file": "food.json"
     },
     {
       "id": "language",
       "name": "Езикът ни",
-      "icon": "🔤",
+      "icon": "languages",
       "file": "language.json"
     }
   ]

@@ -1,6 +1,5 @@
 import type { Game } from '../../game/engine.ts';
 import { formatPrize, LEVEL_COUNT } from '../../game/ladder.ts';
-import { LIFELINES } from '../../game/lifelines.ts';
 import {
   addToHallOfFame,
   loadSettings,
@@ -13,20 +12,24 @@ import { HOST, line } from '../../show/script.ts';
 import type { AppContext, PlaySource, Screen } from '../context.ts';
 import { h, prefersReducedMotion } from '../dom.ts';
 import { packUrl } from '../links.ts';
+import { submitToLeaderboard } from '../components/leaderboard.ts';
+import { cloud } from '../../cloud/index.ts';
+import { icon } from '../icons.ts';
+import { lifelineMark } from '../components/marks.ts';
 
 const HEADLINES = {
-  won: { icon: '🏆', title: 'Милионер!', text: 'Изкачи цялата стълба. Невероятно!' },
+  won: { icon: 'trophy', title: 'Милионер!', text: 'Изкачи цялата стълба. Невероятно!' },
   walked: {
-    icon: '💼',
+    icon: 'briefcase',
     title: 'Умно решение',
     text: 'Понякога най-добрият ход е да спреш навреме.',
   },
   wrong: {
-    icon: '💥',
+    icon: 'circle-x',
     title: 'Край на играта',
     text: 'Грешен отговор, но пък беше на крачка напред.',
   },
-  timeout: { icon: '⏰', title: 'Времето изтече', text: 'Часовникът беше по-бърз този път.' },
+  timeout: { icon: 'timer', title: 'Времето изтече', text: 'Часовникът беше по-бърз този път.' },
 } as const;
 
 /** Animates a number from 0 to `target` with an ease-out curve. */
@@ -56,6 +59,19 @@ export function resultScreen(ctx: AppContext, game: Game, source?: PlaySource): 
     recordGame({ mode: game.mode.id, winnings, correctAnswers, won: outcome === 'won' });
     rememberQuestionIds(game.seenIds);
   }
+  // Signed-in players' best results go to the global leaderboard.
+  const boardNote = h('p', { class: 'result__board', hidden: true });
+  if (!source)
+    void submitToLeaderboard({
+      name: loadSettings().playerName || cloud.user?.name || '',
+      prize: winnings,
+      mode: game.mode.id,
+      level: correctAnswers,
+    }).then((best) => {
+      if (!best) return;
+      boardNote.hidden = false;
+      boardNote.replaceChildren(icon('earth'), 'Нов личен рекорд в общата класация!');
+    });
 
   const copy = HEADLINES[outcome];
   const amount = h('p', { class: 'result__amount' }, formatPrize(0));
@@ -67,7 +83,8 @@ export function resultScreen(ctx: AppContext, game: Game, source?: PlaySource): 
   const shareButton = h(
     'button',
     { type: 'button', class: 'btn btn--ghost', onClick: () => void share() },
-    '📣 Сподели',
+    icon('share'),
+    'Сподели',
   );
 
   async function share() {
@@ -78,14 +95,14 @@ export function resultScreen(ctx: AppContext, game: Game, source?: PlaySource): 
         return;
       }
       await navigator.clipboard.writeText(`${shareText} ${url}`);
-      shareButton.textContent = '✔ Копирано!';
+      shareButton.replaceChildren(icon('check'), 'Копирано');
     } catch {
       /* the user cancelled or the clipboard is blocked */
     }
   }
 
   const fame = source
-    ? h('p', { class: 'hint' }, `📝 Пакет „${source.pack.title}“ от ${source.pack.ownerName}`)
+    ? h('p', { class: 'hint' }, `Пакет „${source.pack.title}“ от ${source.pack.ownerName}`)
     : qualifiesForHallOfFame(winnings)
       ? hallOfFameForm(ctx, game, winnings)
       : null;
@@ -97,7 +114,8 @@ export function resultScreen(ctx: AppContext, game: Game, source?: PlaySource): 
       class: 'btn btn--primary',
       onClick: () => ctx.go.play(game.mode.id, [...game.categories], source),
     },
-    '🔁 Играй пак',
+    icon('rotate-ccw'),
+    'Играй пак',
   );
 
   const el = h(
@@ -106,7 +124,7 @@ export function resultScreen(ctx: AppContext, game: Game, source?: PlaySource): 
     h(
       'div',
       { class: 'card result__card' },
-      h('div', { class: 'result__icon', 'aria-hidden': 'true' }, copy.icon),
+      h('div', { class: 'result__icon' }, icon(copy.icon)),
       h('h1', { class: 'result__title' }, copy.title),
       h('p', { class: 'result__text' }, copy.text),
       h('p', { class: 'result__label' }, winnings > 0 ? 'Печелиш' : 'Печалба'),
@@ -129,12 +147,17 @@ export function resultScreen(ctx: AppContext, game: Game, source?: PlaySource): 
             'dd',
             null,
             game.usedLifelines.size > 0
-              ? [...game.usedLifelines].map((id) => LIFELINES[id].icon).join(' ')
+              ? h(
+                  'span',
+                  { class: 'mark-row' },
+                  [...game.usedLifelines].map((id) => lifelineMark(id)),
+                )
               : 'нито един',
           ),
         ),
       ),
       fame,
+      boardNote,
       h(
         'div',
         { class: 'result__actions' },
@@ -146,7 +169,8 @@ export function resultScreen(ctx: AppContext, game: Game, source?: PlaySource): 
             class: 'btn btn--ghost',
             onClick: () => (source ? ctx.go.pack(source.pack.id, source.pack) : ctx.go.menu()),
           },
-          source ? '📝 Към пакета' : '🏠 Меню',
+          icon(source ? 'notebook-pen' : 'house'),
+          source ? 'Към пакета' : 'Меню',
         ),
         shareButton,
       ),
@@ -157,7 +181,7 @@ export function resultScreen(ctx: AppContext, game: Game, source?: PlaySource): 
   const playerName = loadSettings().playerName.trim();
   const goodbye = line('goodbye', playerName ? { name: playerName } : {});
   el.querySelector('.result__card')?.append(
-    h('p', { class: 'result__host' }, `🎙️ ${HOST.shortName}: „${goodbye.text}“`),
+    h('p', { class: 'result__host' }, icon('mic'), ` ${HOST.shortName}: „${goodbye.text}“`),
   );
   void ctx.narrator.say(goodbye);
   return { el, focus: fame?.querySelector('input') ?? playAgain };
@@ -194,7 +218,7 @@ function hallOfFameForm(ctx: AppContext, game: Game, prize: number): HTMLElement
           date: new Date().toISOString(),
         });
         form.replaceChildren(
-          h('p', { class: 'fame-form__done' }, `🏆 Имаш ${rank + 1}-во място в Залата на славата!`),
+          h('p', { class: 'fame-form__done' }, `Имаш ${rank + 1}-во място в Залата на славата!`),
           h(
             'button',
             { type: 'button', class: 'btn btn--ghost btn--sm', onClick: () => ctx.go.hallOfFame() },
@@ -203,7 +227,7 @@ function hallOfFameForm(ctx: AppContext, game: Game, prize: number): HTMLElement
         );
       },
     },
-    h('label', { class: 'fame-form__label' }, '🏆 Влизаш в Залата на славата! Запиши името си:'),
+    h('label', { class: 'fame-form__label' }, 'Влизаш в Залата на славата! Запиши името си:'),
     h(
       'div',
       { class: 'fame-form__row' },

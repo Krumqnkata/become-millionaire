@@ -1,8 +1,12 @@
 import { initializeApp } from 'firebase/app';
 import {
   connectAuthEmulator,
+  createUserWithEmailAndPassword,
   getAuth,
   GoogleAuthProvider,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+  updateProfile,
   onAuthStateChanged,
   signInWithCredential,
   signInWithPopup,
@@ -26,6 +30,7 @@ import {
   Timestamp,
   updateDoc,
   where,
+  writeBatch,
   type DocumentData,
   type DocumentSnapshot,
 } from 'firebase/firestore/lite';
@@ -37,6 +42,10 @@ import {
   type Pack,
   type PackDraft,
 } from '../game/packs.ts';
+import { PRIZES } from '../game/ladder.ts';
+import { isModeId } from '../game/modes.ts';
+import type { Question } from '../game/types.ts';
+import type { Progress } from '../storage/stats.ts';
 import { firebaseSettings, useEmulators } from './config.ts';
 import type { CloudUser } from './index.ts';
 
@@ -46,6 +55,11 @@ import type { CloudUser } from './index.ts';
  * Data model (see firestore.rules for who may do what):
  *   packs/{packId}     – a player's question pack, questions stored inline (one read per pack)
  *   reports/{reportId} – "this pack is inappropriate", write-only for players
+ *   users/{uid}        – a player's settings, statistics and personal Hall of Fame
+ *   leaderboard/{uid}_{mode} – each player's best result per mode, readable by all
+ *   categories/{id}    – the official questions, one document per category (admins write)
+ *   meta/bank          – when the official questions last changed (for the browser cache)
+ *   admins/{uid}       – who may edit questions and moderate (created by hand in the console)
  */
 
 if (!firebaseSettings) throw new Error('Firebase is not configured');
@@ -60,13 +74,22 @@ if (useEmulators) {
   connectFirestoreEmulator(db, '127.0.0.1', 8080);
 }
 
+const PROVIDER_NAMES: Record<string, string> = {
+  'google.com': 'Google',
+  password: 'имейл',
+};
+
 const toCloudUser = (u: User): CloudUser => ({
   uid: u.uid,
   name: (u.displayName ?? u.email?.split('@')[0] ?? 'Играч').slice(0, PACK_LIMITS.ownerName),
   photoUrl: u.photoURL,
+  provider: PROVIDER_NAMES[u.providerData[0]?.providerId ?? ''] ?? 'профил',
 });
 
+let notify: (user: CloudUser | null) => void = () => {};
+
 export function start(onUser: (user: CloudUser | null) => void): void {
+  notify = onUser;
   onAuthStateChanged(auth, (u) => onUser(u ? toCloudUser(u) : null));
 
   // Emulator only: lets automated tests sign in without the Google window.
@@ -88,6 +111,25 @@ export async function signIn(): Promise<void> {
   provider.setCustomParameters({ prompt: 'select_account' });
   await signInWithPopup(auth, provider);
 }
+
+export async function signInWithEmail(email: string, password: string): Promise<void> {
+  await signInWithEmailAndPassword(auth, email.trim(), password);
+}
+
+export async function signUpWithEmail(
+  name: string,
+  email: string,
+  password: string,
+): Promise<void> {
+  const { user } = await createUserWithEmailAndPassword(auth, email.trim(), password);
+  const displayName = name.trim().slice(0, PACK_LIMITS.ownerName);
+  if (displayName) {
+    await updateProfile(user, { displayName });
+    notify(toCloudUser(user)); // the sign-in event fired before the name was set
+  }
+}
+
+export const resetPassword = (email: string) => sendPasswordResetEmail(auth, email.trim());
 
 export const signOut = () => firebaseSignOut(auth);
 
@@ -184,4 +226,172 @@ export async function reportPack(packId: string, reason: string): Promise<void> 
     reason: reason.trim().slice(0, 500),
     createdAt: serverTimestamp(),
   });
+}
+
+// ─── Admins ──────────────────────────────────────────────────────────────────
+
+export async function isAdmin(): Promise<boolean> {
+  const user = auth.currentUser;
+  if (!user) return false;
+  try {
+    return (await getDoc(doc(db, 'admins', user.uid))).exists();
+  } catch {
+    return false;
+  }
+}
+
+export interface Report {
+  id: string;
+  packId: string;
+  reason: string;
+  createdAt: Date | null;
+}
+
+export async function listReports(): Promise<Report[]> {
+  const snap = await getDocs(
+    query(collection(db, 'reports'), orderBy('createdAt', 'desc'), limit(100)),
+  );
+  return snap.docs.map((d) => {
+    const data = d.data();
+    return {
+      id: d.id,
+      packId: str(data.packId, 128),
+      reason: str(data.reason, 500),
+      createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : null,
+    };
+  });
+}
+
+export const dismissReport = (id: string) => deleteDoc(doc(db, 'reports', id));
+
+// ─── Player progress ─────────────────────────────────────────────────────────
+
+export async function loadRemoteProgress(): Promise<unknown> {
+  const user = requireUser();
+  const snap = await getDoc(doc(db, 'users', user.uid));
+  return snap.exists() ? snap.data() : null;
+}
+
+export async function saveRemoteProgress(progress: Progress): Promise<void> {
+  const user = requireUser();
+  await setDoc(doc(db, 'users', user.uid), { ...progress, updatedAt: serverTimestamp() });
+}
+
+// ─── Leaderboard ─────────────────────────────────────────────────────────────
+
+export interface Score {
+  id: string;
+  uid: string;
+  name: string;
+  prize: number;
+  mode: string;
+  level: number;
+  updatedAt: Date | null;
+}
+
+const toScore = (id: string, d: DocumentData): Score => ({
+  id,
+  uid: str(d.uid, 128),
+  name: str(d.name, 24) || 'Играч',
+  prize: typeof d.prize === 'number' ? d.prize : 0,
+  mode: isModeId(d.mode) ? d.mode : 'normal',
+  level: typeof d.level === 'number' ? d.level : 0,
+  updatedAt: d.updatedAt instanceof Timestamp ? d.updatedAt.toDate() : null,
+});
+
+/**
+ * Keeps the player's best result per mode. Returns true when it is a new best.
+ * The rules only accept real ladder amounts and only improvements.
+ */
+export async function submitScore(entry: {
+  name: string;
+  prize: number;
+  mode: string;
+  level: number;
+}): Promise<boolean> {
+  const user = requireUser();
+  if (entry.prize <= 0 || !(PRIZES as readonly number[]).includes(entry.prize)) return false;
+  const ref = doc(db, 'leaderboard', `${user.uid}_${entry.mode}`);
+  const current = await getDoc(ref);
+  if (current.exists() && (current.data().prize as number) >= entry.prize) return false;
+  await setDoc(ref, {
+    uid: user.uid,
+    name: entry.name.trim().slice(0, 24) || toCloudUser(user).name.slice(0, 24),
+    prize: entry.prize,
+    mode: entry.mode,
+    level: entry.level,
+    updatedAt: serverTimestamp(),
+  });
+  return true;
+}
+
+export async function topScores(size = 20): Promise<Score[]> {
+  const snap = await getDocs(
+    query(
+      collection(db, 'leaderboard'),
+      orderBy('prize', 'desc'),
+      orderBy('updatedAt', 'asc'),
+      limit(size),
+    ),
+  );
+  return snap.docs.map((d) => toScore(d.id, d.data()));
+}
+
+export const deleteScore = (id: string) => deleteDoc(doc(db, 'leaderboard', id));
+
+// ─── Official questions (admins) ─────────────────────────────────────────────
+
+export interface CategoryDoc {
+  id: string;
+  name: string;
+  icon: string;
+  order: number;
+  questions: Question[];
+}
+
+export async function loadCategories(): Promise<CategoryDoc[]> {
+  const snap = await getDocs(collection(db, 'categories'));
+  return snap.docs
+    .map((d) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        name: str(data.name, 60),
+        icon: str(data.icon, 40),
+        order: typeof data.order === 'number' ? data.order : 0,
+        questions: Array.isArray(data.questions) ? (data.questions as Question[]) : [],
+      };
+    })
+    .sort((a, b) => a.order - b.order);
+}
+
+const categoryData = (c: CategoryDoc) => ({
+  name: c.name,
+  icon: c.icon,
+  order: c.order,
+  questions: c.questions.map((q) => {
+    const clean: Question = {
+      id: q.id,
+      difficulty: q.difficulty,
+      question: q.question.trim(),
+      answers: q.answers.map((a) => a.trim()) as Question['answers'],
+      correct: q.correct,
+    };
+    if (q.explanation?.trim()) clean.explanation = q.explanation.trim();
+    return clean;
+  }),
+  updatedAt: serverTimestamp(),
+});
+
+/** Saves categories and marks the question bank as changed, in one atomic write. */
+export async function saveCategories(
+  categories: CategoryDoc[],
+  removed: string[] = [],
+): Promise<void> {
+  requireUser();
+  const batch = writeBatch(db);
+  for (const c of categories) batch.set(doc(db, 'categories', c.id), categoryData(c));
+  for (const id of removed) batch.delete(doc(db, 'categories', id));
+  batch.set(doc(db, 'meta', 'bank'), { updatedAt: serverTimestamp() });
+  await batch.commit();
 }

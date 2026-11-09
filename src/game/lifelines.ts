@@ -4,22 +4,22 @@ import type { AnswerIndex, Difficulty, LifelineId, Rng } from './types.ts';
 export const LIFELINES: Record<LifelineId, { name: string; icon: string; description: string }> = {
   fifty: {
     name: '50:50',
-    icon: '½',
+    icon: '50:50',
     description: 'Премахва два грешни отговора.',
   },
   audience: {
     name: 'Питай публиката',
-    icon: '👥',
+    icon: 'users',
     description: 'Публиката гласува. Колкото по-труден е въпросът, толкова по-често греши.',
   },
   phone: {
     name: 'Обади се на приятел',
-    icon: '📞',
+    icon: 'phone',
     description: 'Приятел ти казва какво мисли. Всеки има любима тема.',
   },
   switch: {
     name: 'Смени въпроса',
-    icon: '🔄',
+    icon: 'shuffle',
     description: 'Получаваш нов въпрос със същата трудност.',
   },
 };
@@ -107,7 +107,6 @@ export function askAudience(
 export interface Friend {
   name: string;
   role: string;
-  avatar: string;
   /** Used to pick a matching voice for the phone call. */
   gender: 'male' | 'female';
   /** Category ids the friend is great at. */
@@ -119,36 +118,31 @@ export const FRIENDS: Friend[] = [
     name: 'Баба Мария',
     gender: 'female',
     role: 'пенсионирана учителка по история',
-    avatar: '👵',
     expertise: ['history', 'bulgaria', 'food'],
   },
   {
     name: 'Деси',
     gender: 'female',
     role: 'студентка по медицина',
-    avatar: '👩‍⚕️',
     expertise: ['science', 'animals'],
   },
   {
     name: 'Чичо Петър',
     gender: 'male',
     role: 'таксиметров шофьор, обиколил света',
-    avatar: '🚕',
     expertise: ['geography', 'general'],
   },
-  { name: 'Мартин', gender: 'male', role: 'треньор по футбол', avatar: '⚽', expertise: ['sport'] },
+  { name: 'Мартин', gender: 'male', role: 'треньор по футбол', expertise: ['sport'] },
   {
     name: 'Кали',
     gender: 'female',
     role: 'библиотекарка',
-    avatar: '📚',
     expertise: ['art', 'language', 'myth'],
   },
   {
     name: 'Иво',
     gender: 'male',
     role: 'програмист и киноман',
-    avatar: '🎬',
     expertise: ['entertainment', 'tech'],
   },
 ];

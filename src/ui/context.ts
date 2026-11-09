@@ -56,5 +56,7 @@ export interface AppContext {
     pack(id: string, preloaded?: Pack): void;
     /** Public packs made by players. */
     browse(): void;
+    /** Official questions and moderation (admins only). */
+    admin(): void;
   };
 }

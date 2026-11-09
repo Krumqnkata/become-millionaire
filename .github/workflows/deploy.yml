@@ -1,4 +1,4 @@
-name: Deploy to GitHub Pages
+name: Deploy
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
+  group: deploy
   cancel-in-progress: false
 
 jobs:
@@ -37,22 +37,57 @@ jobs:
       - run: npm run validate
       - run: npm test
       - run: npm run test:rules
-      # Accounts are built in only when the FIREBASE_* repository variables exist.
-      - run: npm run build
+
+      # The game itself, for Firebase Hosting (served from the domain root).
+      - run: npm run build:firebase
         env:
           VITE_FIREBASE_API_KEY: ${{ vars.FIREBASE_API_KEY }}
           VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.FIREBASE_AUTH_DOMAIN }}
           VITE_FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
           VITE_FIREBASE_APP_ID: ${{ vars.FIREBASE_APP_ID }}
 
-      - uses: actions/configure-pages@v6
+      - uses: actions/upload-artifact@v7
+        with:
+          name: site
+          path: dist
+          retention-days: 3
 
+      # The old GitHub Pages address now only forwards to the new one.
+      - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:
+          path: pages-redirect
+
+  firebase:
+    name: Deploy to Firebase Hosting
+    needs: build
+    runs-on: ubuntu-latest
+    # Needs the service account secret that `firebase init hosting:github` creates.
+    env:
+      HAS_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_STANI_BOGAT != '' }}
+    steps:
+      - uses: actions/checkout@v7
+        if: env.HAS_ACCOUNT == 'true'
+
+      - uses: actions/download-artifact@v8
+        if: env.HAS_ACCOUNT == 'true'
+        with:
+          name: site
           path: dist
 
-  deploy:
-    name: Deploy
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        if: env.HAS_ACCOUNT == 'true'
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_STANI_BOGAT }}
+          projectId: stani-bogat
+          channelId: live
+
+      - if: env.HAS_ACCOUNT != 'true'
+        run: echo "::warning::No FIREBASE_SERVICE_ACCOUNT_STANI_BOGAT secret, so Firebase Hosting was not updated. Run 'npm run deploy' locally or add the secret (see README)."
+
+  pages:
+    name: Redirect GitHub Pages
     needs: build
     runs-on: ubuntu-latest
     environment:

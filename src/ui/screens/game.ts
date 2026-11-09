@@ -13,6 +13,8 @@ import { openModal } from '../components/modal.ts';
 import { createTimer, type TimerView } from '../components/timer.ts';
 import type { AppContext, PlaySource, Screen } from '../context.ts';
 import { h, prefersReducedMotion, replace, wait } from '../dom.ts';
+import { icon } from '../icons.ts';
+import { lifelineMark } from '../components/marks.ts';
 
 const KEY_TO_ANSWER: Record<string, AnswerIndex> = {
   Digit1: 0,
@@ -124,7 +126,8 @@ export function gameScreen(
       onClick: () => confirmWalkAway(),
       title: 'Клавиш W',
     },
-    '💰 Вземи парите',
+    icon('briefcase'),
+    'Вземи парите',
   );
   const ladderToggle = h(
     'button',
@@ -134,7 +137,8 @@ export function gameScreen(
       'aria-expanded': 'false',
       onClick: () => toggleLadder(),
     },
-    '🪜 Стълба',
+    icon('list-ordered'),
+    'Стълба',
   );
 
   const categoryChip = h('span', { class: 'question__category' });
@@ -186,7 +190,7 @@ export function gameScreen(
           disabled: true,
           onClick: () => void onLifeline(id),
         },
-        h('span', { class: 'lifeline__icon', 'aria-hidden': 'true' }, LIFELINES[id].icon),
+        lifelineMark(id, 'lifeline__icon'),
         h('span', { class: 'lifeline__name' }, LIFELINES[id].name),
       ),
     );
@@ -228,9 +232,11 @@ export function gameScreen(
     const q = game.question;
     const category = categoryById.get(q.category);
     levelLabel.textContent = `Въпрос ${game.level} от ${LEVEL_COUNT}`;
-    prizeLabel.textContent = `за ${formatPrize(prizeForLevel(game.level))}${game.isSafeHaven ? ' 🔒' : ''}`;
-    categoryChip.textContent = category ? `${category.icon} ${category.name}` : '';
-    difficultyBadge.textContent = `${'★'.repeat(q.difficulty)}${'☆'.repeat(5 - q.difficulty)}`;
+    prizeLabel.textContent = `за ${formatPrize(prizeForLevel(game.level))}${game.isSafeHaven ? ' · сигурна сума' : ''}`;
+    categoryChip.replaceChildren(...(category ? [icon(category.icon), category.name] : []));
+    difficultyBadge.replaceChildren(
+      ...[1, 2, 3, 4, 5].map((d) => h('i', { class: d <= q.difficulty ? 'pip is-on' : 'pip' })),
+    );
     difficultyBadge.title = `Трудност: ${DIFFICULTY_LABEL[q.difficulty]}`;
     difficultyBadge.setAttribute('aria-label', `Трудност ${q.difficulty} от 5`);
     questionText.textContent = q.question;
@@ -249,8 +255,10 @@ export function gameScreen(
     panels.replaceChildren();
     ladder.update(game.level, game.answered);
     renderLifelines();
-    walkButton.textContent =
-      game.answered > 0 ? `💰 Вземи ${formatPrize(game.currentPrize)}` : '💰 Вземи парите';
+    walkButton.replaceChildren(
+      icon('briefcase'),
+      game.answered > 0 ? `Вземи ${formatPrize(game.currentPrize)}` : 'Вземи парите',
+    );
   }
 
   function renderSelection() {
@@ -325,7 +333,8 @@ export function gameScreen(
       h(
         'button',
         { type: 'button', class: 'btn btn--ghost btn--sm', onClick: () => skipSequence() },
-        '⏭ Пропусни представянето',
+        icon('skip-forward'),
+        'Пропусни представянето',
       ),
     );
     await pause(1200);
@@ -499,7 +508,8 @@ export function gameScreen(
         h(
           'button',
           { type: 'button', class: 'btn btn--primary', onClick: () => ctx.go.result(game, source) },
-          '🏆 Към наградата',
+          icon('trophy'),
+          'Към наградата',
         ),
       );
       await say('million', {}, 'happy');
@@ -515,7 +525,7 @@ export function gameScreen(
       'button',
       { type: 'button', class: 'btn btn--primary', onClick: () => goNext() },
       `Следващ въпрос за ${formatPrize(prizeForLevel(game.level + 1))}`,
-      h('span', { class: 'btn__arrow', 'aria-hidden': 'true' }, '→'),
+      icon('arrow-right', { class: 'btn__arrow' }),
     );
     replace(
       actionBar,
@@ -526,8 +536,8 @@ export function gameScreen(
           'strong',
           null,
           reachedSafeHaven
-            ? `🔒 Сигурна сума! ${formatPrize(game.currentPrize)} са твои.`
-            : `✔ Вярно! Имаш ${formatPrize(game.currentPrize)}.`,
+            ? `Сигурна сума! ${formatPrize(game.currentPrize)} са твои.`
+            : `Вярно! Имаш ${formatPrize(game.currentPrize)}.`,
         ),
       ),
       explanation(),
@@ -552,14 +562,14 @@ export function gameScreen(
     const q = game.question;
     answerButtons[q.correct]?.classList.add('is-correct');
     const correctText = `${letterOf(q.correct)}: ${q.answers[q.correct]}`;
-    const headline = reason === 'timeout' ? '⏰ Времето изтече!' : '✖ Грешен отговор.';
+    const headline = reason === 'timeout' ? 'Времето изтече!' : 'Грешен отговор.';
     ctx.announce(`${headline} Верният отговор е ${correctText}.`);
 
     const toResult = h(
       'button',
       { type: 'button', class: 'btn btn--primary', onClick: () => ctx.go.result(game, source) },
       'Виж резултата',
-      h('span', { class: 'btn__arrow', 'aria-hidden': 'true' }, '→'),
+      icon('arrow-right', { class: 'btn__arrow' }),
     );
     replace(
       actionBar,
@@ -585,7 +595,12 @@ export function gameScreen(
 
   function explanation() {
     return game.question.explanation
-      ? h('p', { class: 'explanation' }, '💡 ', game.question.explanation)
+      ? h(
+          'p',
+          { class: 'explanation' },
+          icon('lightbulb'),
+          h('span', null, game.question.explanation),
+        )
       : null;
   }
 
@@ -709,7 +724,7 @@ export function gameScreen(
     call.showAnswer(result.call.message, result.call.confidence);
     ctx.announce(`${friend.name}: ${result.call.message}`);
     await host.say(result.call.message, {
-      speaker: `${friend.avatar} ${friend.name}`,
+      speaker: friend.name,
       role: friend.gender,
       pitch: FRIEND_PITCH.get(friend.name) ?? 1,
     });
@@ -758,7 +773,8 @@ export function gameScreen(
       h(
         'button',
         { type: 'button', class: 'btn btn--primary', onClick: () => ctx.go.result(game, source) },
-        'Към резултата →',
+        'Към резултата',
+        icon('arrow-right', { class: 'btn__arrow' }),
       ),
     );
 
@@ -805,7 +821,8 @@ export function gameScreen(
       h(
         'button',
         { type: 'button', class: 'btn btn--primary', onClick: () => ctx.go.result(game, source) },
-        'Към резултата →',
+        'Към резултата',
+        icon('arrow-right', { class: 'btn__arrow' }),
       ),
     );
     await say(

@@ -17,6 +17,7 @@ import { backTo, signInCard, withCloud } from '../components/cloud-ui.ts';
 import { openModal } from '../components/modal.ts';
 import type { AppContext, Screen } from '../context.ts';
 import { h, replace } from '../dom.ts';
+import { icon } from '../icons.ts';
 
 const DIFFICULTY_NAMES = ['', 'Лесен', 'Среден', 'Труден', 'Много труден', 'Експертен'];
 
@@ -51,7 +52,7 @@ export function packEditorScreen(ctx: AppContext, existing: Pack | null): Screen
     renderStatus();
   };
 
-  const back = backTo('← Моите въпроси', () => leave(() => ctx.go.myPacks()));
+  const back = backTo('Моите въпроси', () => leave(() => ctx.go.myPacks()));
   const body = h('div', { class: 'editor' });
 
   // ── Pack details ───────────────────────────────────────────────────────────
@@ -87,7 +88,7 @@ export function packEditorScreen(ctx: AppContext, existing: Pack | null): Screen
       h(
         'span',
         { class: 'choice__body' },
-        h('strong', null, `${VISIBILITY[v].icon} ${VISIBILITY[v].name}`),
+        h('strong', null, icon(VISIBILITY[v].icon), VISIBILITY[v].name),
         h('small', null, VISIBILITY[v].hint),
       ),
     ),
@@ -173,11 +174,7 @@ export function packEditorScreen(ctx: AppContext, existing: Pack | null): Screen
         onChange: () => ((q.difficulty = Number(difficulty.value) as Difficulty), touch()),
       },
       [1, 2, 3, 4, 5].map((d) =>
-        h(
-          'option',
-          { value: d, selected: q.difficulty === d },
-          `${'★'.repeat(d)} ${DIFFICULTY_NAMES[d]}`,
-        ),
+        h('option', { value: d, selected: q.difficulty === d }, `${d} · ${DIFFICULTY_NAMES[d]}`),
       ),
     );
 
@@ -191,7 +188,7 @@ export function packEditorScreen(ctx: AppContext, existing: Pack | null): Screen
       onInput: () => ((q.explanation = explanation.value), touch()),
     });
 
-    const tool = (label: string, title: string, onClick: () => void, disabled = false) =>
+    const tool = (label: SVGElement, title: string, onClick: () => void, disabled = false) =>
       h(
         'button',
         {
@@ -216,14 +213,14 @@ export function packEditorScreen(ctx: AppContext, existing: Pack | null): Screen
         h(
           'span',
           { class: 'q-card__tools' },
-          tool('↑', 'Премести нагоре', () => move(index, index - 1), index === 0),
+          tool(icon('arrow-up'), 'Премести нагоре', () => move(index, index - 1), index === 0),
           tool(
-            '↓',
+            icon('arrow-down'),
             'Премести надолу',
             () => move(index, index + 1),
             index === draft.questions.length - 1,
           ),
-          tool('⧉', 'Дублирай', () => {
+          tool(icon('copy'), 'Дублирай', () => {
             draft.questions.splice(index + 1, 0, {
               ...q,
               answers: [...q.answers] as PackQuestion['answers'],
@@ -231,7 +228,7 @@ export function packEditorScreen(ctx: AppContext, existing: Pack | null): Screen
             dirty = true;
             renderQuestions(index + 1);
           }),
-          tool('🗑', 'Изтрий въпроса', () => {
+          tool(icon('trash'), 'Изтрий въпроса', () => {
             draft.questions.splice(index, 1);
             if (draft.questions.length === 0) draft.questions.push(emptyQuestion());
             dirty = true;
@@ -281,7 +278,7 @@ export function packEditorScreen(ctx: AppContext, existing: Pack | null): Screen
       },
     });
     const close = openModal({
-      title: '📥 Внеси въпроси от JSON',
+      title: 'Внеси въпроси от JSON',
       body: [
         h(
           'p',
@@ -336,7 +333,8 @@ export function packEditorScreen(ctx: AppContext, existing: Pack | null): Screen
   const saveButton = h(
     'button',
     { type: 'button', class: 'btn btn--primary', onClick: () => void save() },
-    '💾 Запази',
+    icon('save'),
+    'Запази',
   );
   let service: CloudService | null = null;
 
@@ -382,7 +380,7 @@ export function packEditorScreen(ctx: AppContext, existing: Pack | null): Screen
     } finally {
       saving = false;
       saveButton.disabled = false;
-      saveButton.textContent = '💾 Запази';
+      saveButton.replaceChildren(icon('save'), 'Запази');
     }
   }
 
@@ -437,12 +435,14 @@ export function packEditorScreen(ctx: AppContext, existing: Pack | null): Screen
         h(
           'button',
           { type: 'button', class: 'btn btn--ghost btn--sm', onClick: importJson },
-          '📥 Внеси JSON',
+          icon('upload'),
+          'Внеси JSON',
         ),
         h(
           'button',
           { type: 'button', class: 'btn btn--ghost btn--sm', onClick: exportJson },
-          '📤 Изнеси',
+          icon('download'),
+          'Изнеси',
         ),
       ),
     ),
@@ -468,7 +468,7 @@ export function packEditorScreen(ctx: AppContext, existing: Pack | null): Screen
     'section',
     { class: 'screen info' },
     back,
-    h('h1', { class: 'info__title' }, existing ? '✏️ Редактиране' : '✏️ Нов пакет'),
+    h('h1', { class: 'info__title' }, existing ? 'Редактиране' : 'Нов пакет'),
     body,
   );
 

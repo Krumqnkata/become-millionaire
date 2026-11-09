@@ -172,3 +172,108 @@ describe('reports', () => {
     await assertFails(getDoc(doc(as('ivo'), 'reports/r1')));
   });
 });
+
+describe('admins', () => {
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'admins/boss'), {});
+    });
+    await seed('secret', pack('ana'));
+  });
+
+  it('cannot be created by players', async () => {
+    await assertFails(setDoc(doc(as('ivo'), 'admins/ivo'), {}));
+  });
+
+  it('lets a player check only their own admin entry', async () => {
+    await assertSucceeds(getDoc(doc(as('boss'), 'admins/boss')));
+    await assertSucceeds(getDoc(doc(as('ivo'), 'admins/ivo')));
+    await assertFails(getDoc(doc(as('ivo'), 'admins/boss')));
+  });
+
+  it('can read private packs, delete any pack and read reports', async () => {
+    await assertSucceeds(getDoc(doc(as('boss'), 'packs/secret')));
+    await assertSucceeds(getDocs(collection(as('boss'), 'reports')));
+    await assertFails(getDocs(collection(as('ivo'), 'reports')));
+    await assertSucceeds(deleteDoc(doc(as('boss'), 'packs/secret')));
+  });
+});
+
+describe('official questions', () => {
+  const category = () => ({
+    name: 'История',
+    icon: 'landmark',
+    order: 0,
+    questions: [question(1)],
+    updatedAt: serverTimestamp(),
+  });
+
+  beforeEach(() =>
+    env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'admins/boss'), {});
+    }),
+  );
+
+  it('are readable by anyone, even guests', async () => {
+    await assertSucceeds(getDocs(collection(as(null), 'categories')));
+    await assertSucceeds(getDoc(doc(as(null), 'meta/bank')));
+  });
+
+  it('can only be edited by admins', async () => {
+    await assertSucceeds(setDoc(doc(as('boss'), 'categories/history'), category()));
+    await assertSucceeds(setDoc(doc(as('boss'), 'meta/bank'), { updatedAt: serverTimestamp() }));
+    await assertFails(setDoc(doc(as('ivo'), 'categories/history'), category()));
+    await assertFails(setDoc(doc(as('ivo'), 'meta/bank'), { updatedAt: serverTimestamp() }));
+  });
+
+  it('rejects bad category ids and unknown fields', async () => {
+    await assertFails(setDoc(doc(as('boss'), 'categories/Bad Id'), category()));
+    await assertFails(setDoc(doc(as('boss'), 'categories/ok'), { ...category(), extra: 1 }));
+  });
+});
+
+describe('player progress', () => {
+  const progress = () => ({
+    settings: {},
+    stats: { gamesPlayed: 1 },
+    hallOfFame: [],
+    updatedAt: serverTimestamp(),
+  });
+
+  it('is private to the player', async () => {
+    await assertSucceeds(setDoc(doc(as('ana'), 'users/ana'), progress()));
+    await assertSucceeds(getDoc(doc(as('ana'), 'users/ana')));
+    await assertFails(getDoc(doc(as('ivo'), 'users/ana')));
+    await assertFails(setDoc(doc(as('ivo'), 'users/ana'), progress()));
+  });
+});
+
+describe('leaderboard', () => {
+  const score = (uid: string, prize: number, mode = 'normal') => ({
+    uid,
+    name: 'Ана',
+    prize,
+    mode,
+    level: 10,
+    updatedAt: serverTimestamp(),
+  });
+
+  it('accepts a real ladder amount under your own id', async () => {
+    await assertSucceeds(setDoc(doc(as('ana'), 'leaderboard/ana_normal'), score('ana', 40000)));
+    await assertSucceeds(getDocs(collection(as(null), 'leaderboard')));
+  });
+
+  it('rejects made-up amounts, other ids and other players', async () => {
+    await assertFails(setDoc(doc(as('ana'), 'leaderboard/ana_normal'), score('ana', 12345)));
+    await assertFails(setDoc(doc(as('ana'), 'leaderboard/ana_easy'), score('ana', 1000)));
+    await assertFails(setDoc(doc(as('ana'), 'leaderboard/ivo_normal'), score('ivo', 1000)));
+    await assertFails(setDoc(doc(as(null), 'leaderboard/ana_normal'), score('ana', 1000)));
+  });
+
+  it('only replaces a result with a better one', async () => {
+    const ref = doc(as('ana'), 'leaderboard/ana_normal');
+    await assertSucceeds(setDoc(ref, score('ana', 40000)));
+    await assertFails(setDoc(ref, score('ana', 1000)));
+    await assertSucceeds(setDoc(ref, score('ana', 75000)));
+  });
+});

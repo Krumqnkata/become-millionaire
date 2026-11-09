@@ -80,7 +80,7 @@ describe('packToBank', () => {
   it('builds a one-category bank the engine can play to the end', () => {
     const bank = packToBank({ id: 'AbC123', title: 'Моят пакет', questions: draft(15).questions });
     expect(bank.categories).toEqual([
-      { id: 'pack-AbC123', name: 'Моят пакет', icon: '📝', file: '' },
+      { id: 'pack-AbC123', name: 'Моят пакет', icon: 'notebook-pen', file: '' },
     ]);
     expect(new Set(bank.questions.map((x) => x.id)).size).toBe(15);
     expect(bank.questions[0]?.id).toBe('pack-abc123-1');
@@ -112,5 +112,52 @@ describe('switching the question in a small pack', () => {
       game.next();
     }
     expect(game.level).toBe(15);
+  });
+});
+
+describe('mergeProgress', () => {
+  it('keeps device settings, the busier stats and the best of both Halls of Fame', async () => {
+    const { mergeProgress } = await import('../src/storage/stats.ts');
+    const entry = (name: string, prize: number) => ({
+      name,
+      prize,
+      mode: 'normal' as const,
+      level: 5,
+      date: `2026-01-0${prize % 9}`,
+    });
+    const local = {
+      settings: {
+        ...(await import('../src/storage/stats.ts')).loadSettings(),
+        volume: 0.3,
+        music: true,
+      },
+      stats: {
+        gamesPlayed: 2,
+        correctAnswers: 10,
+        totalWinnings: 2000,
+        bestPrize: 1000,
+        millions: 0,
+        bestByMode: { easy: 1000 },
+      },
+      hallOfFame: [entry('Ана', 1000)],
+    };
+    const remote = {
+      settings: { volume: 1, music: false },
+      stats: {
+        gamesPlayed: 9,
+        correctAnswers: 70,
+        totalWinnings: 90000,
+        bestPrize: 40000,
+        millions: 0,
+        bestByMode: { normal: 40000 },
+      },
+      hallOfFame: [entry('Ана', 40000), entry('Ана', 1000)],
+    };
+    const merged = mergeProgress(local, remote);
+    expect(merged.settings.volume).toBe(0.3);
+    expect(merged.settings.music).toBe(false);
+    expect(merged.stats.gamesPlayed).toBe(9);
+    expect(merged.stats.bestByMode).toEqual({ easy: 1000, normal: 40000 });
+    expect(merged.hallOfFame.map((e) => e.prize)).toEqual([40000, 1000]);
   });
 });

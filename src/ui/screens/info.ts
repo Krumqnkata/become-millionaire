@@ -3,14 +3,20 @@ import { LIFELINES } from '../../game/lifelines.ts';
 import { MODE_ORDER, MODES } from '../../game/modes.ts';
 import { loadHallOfFame, loadStats, resetProgress } from '../../storage/stats.ts';
 import { openModal } from '../components/modal.ts';
+import type { LifelineId } from '../../game/types.ts';
 import type { AppContext, Screen } from '../context.ts';
 import { h, replace } from '../dom.ts';
+import { icon } from '../icons.ts';
+import { globalLeaderboard } from '../components/leaderboard.ts';
+import { lifelineMark, rankMark } from '../components/marks.ts';
+import { cloud } from '../../cloud/index.ts';
 
 const backButton = (ctx: AppContext) =>
   h(
     'button',
     { type: 'button', class: 'btn btn--ghost btn--sm back', onClick: () => ctx.go.menu() },
-    '← Назад',
+    icon('arrow-left'),
+    'Назад',
   );
 
 const kbd = (...keys: string[]) =>
@@ -22,7 +28,7 @@ export function rulesScreen(ctx: AppContext): Screen {
     'section',
     { class: 'screen info' },
     back,
-    h('h1', { class: 'info__title' }, '📖 Правила'),
+    h('h1', { class: 'info__title' }, icon('book-open'), 'Правила'),
     h(
       'div',
       { class: 'card prose' },
@@ -39,13 +45,13 @@ export function rulesScreen(ctx: AppContext): Screen {
         h(
           'li',
           null,
-          h('strong', null, 'Сигурни суми 🔒'),
+          h('strong', null, 'Сигурни суми'),
           ' – стигнеш ли до тях, остават твои дори да сгрешиш по-нататък.',
         ),
         h(
           'li',
           null,
-          h('strong', null, 'Вземи парите 💰'),
+          h('strong', null, 'Вземи парите'),
           ' – можеш да спреш по всяко време и да запазиш спечеленото до момента.',
         ),
         h(
@@ -85,7 +91,15 @@ export function rulesScreen(ctx: AppContext): Screen {
                 null,
                 h('td', null, h('strong', null, m.name)),
                 h('td', null, m.timer ? `${m.timer} s` : '—'),
-                h('td', null, m.lifelines.map((l) => LIFELINES[l].icon).join(' ')),
+                h(
+                  'td',
+                  null,
+                  h(
+                    'span',
+                    { class: 'mark-row' },
+                    m.lifelines.map((l) => lifelineMark(l)),
+                  ),
+                ),
                 h(
                   'td',
                   null,
@@ -103,15 +117,17 @@ export function rulesScreen(ctx: AppContext): Screen {
       h(
         'ul',
         { class: 'lifeline-list' },
-        Object.values(LIFELINES).map((l) =>
-          h(
-            'li',
-            null,
-            h('span', { class: 'lifeline-list__icon' }, l.icon),
-            h('strong', null, l.name),
-            ` – ${l.description}`,
+        (Object.keys(LIFELINES) as LifelineId[])
+          .map((id) => ({ id, l: LIFELINES[id] }))
+          .map(({ id, l }) =>
+            h(
+              'li',
+              null,
+              lifelineMark(id, 'lifeline-list__icon'),
+              h('strong', null, l.name),
+              ` – ${l.description}`,
+            ),
           ),
-        ),
       ),
 
       h('h2', null, 'Клавиши'),
@@ -140,6 +156,7 @@ export function rulesScreen(ctx: AppContext): Screen {
 
 export function hallOfFameScreen(ctx: AppContext): Screen {
   const back = backButton(ctx);
+  const board = globalLeaderboard(ctx);
   const container = h('div');
 
   const render = () => {
@@ -182,7 +199,7 @@ export function hallOfFameScreen(ctx: AppContext): Screen {
                 h(
                   'li',
                   { class: `fame__row${i < 3 ? ` fame__row--${i + 1}` : ''}` },
-                  h('span', { class: 'fame__rank' }, i < 3 ? ['🥇', '🥈', '🥉'][i] : `${i + 1}.`),
+                  h('span', { class: 'fame__rank' }, rankMark(i)),
                   h('span', { class: 'fame__name' }, e.name),
                   h(
                     'span',
@@ -218,7 +235,8 @@ export function hallOfFameScreen(ctx: AppContext): Screen {
                   ],
                 }),
             },
-            '🗑 Изчисти прогреса',
+            icon('trash'),
+            'Изчисти прогреса',
           )
         : null,
     );
@@ -229,8 +247,16 @@ export function hallOfFameScreen(ctx: AppContext): Screen {
     'section',
     { class: 'screen info' },
     back,
-    h('h1', { class: 'info__title' }, '🏆 Зала на славата'),
+    h('h1', { class: 'info__title' }, icon('trophy'), 'Зала на славата'),
+    board.el,
+    cloud.enabled
+      ? h(
+          'h2',
+          { class: 'board__subtitle' },
+          cloud.user ? 'Твоите игри' : 'Игрите на това устройство',
+        )
+      : null,
     container,
   );
-  return { el, focus: back };
+  return { el, focus: back, destroy: board.destroy };
 }

@@ -1,5 +1,7 @@
 import { ShowAudio } from '../audio/engine.ts';
+import { loadCloudBank } from '../cloud/bank.ts';
 import { cloud } from '../cloud/index.ts';
+import { startProgressSync } from '../cloud/sync.ts';
 import { Narrator } from '../audio/narrator.ts';
 import { VoicePack } from '../audio/voice-pack.ts';
 import { Voice } from '../audio/voice.ts';
@@ -29,7 +31,9 @@ import { hallOfFameScreen, rulesScreen } from './screens/info.ts';
 import { menuScreen } from './screens/menu.ts';
 import { packEditorScreen } from './screens/pack-editor.ts';
 import { browseScreen, myPacksScreen, packScreen } from './screens/packs.ts';
+import { adminScreen } from './screens/admin.ts';
 import { resultScreen } from './screens/result.ts';
+import { icon } from './icons.ts';
 
 /** Owns the persistent chrome (top bar, live region, confetti, audio) and swaps screens. */
 export class App {
@@ -69,7 +73,7 @@ export class App {
     });
     const renderFullscreen = () => {
       const on = isFullscreen();
-      fullscreenButton.textContent = on ? '🗗' : '⛶';
+      fullscreenButton.replaceChildren(icon(on ? 'minimize' : 'maximize'));
       fullscreenButton.title = on ? 'Изход от цял екран (F)' : 'Цял екран (F)';
       fullscreenButton.setAttribute('aria-label', on ? 'Изход от цял екран' : 'Цял екран');
       document.documentElement.classList.toggle('is-fullscreen', on);
@@ -86,7 +90,7 @@ export class App {
         title: 'Настройки',
         'aria-label': 'Настройки',
       },
-      '⚙️',
+      icon('settings'),
     );
 
     // Accounts: only when Firebase is configured. Shows the player's picture once signed in.
@@ -98,9 +102,9 @@ export class App {
       'aria-label': 'Моите въпроси',
       onClick: () => this.leaveTo(() => this.ctx?.go.myPacks()),
     });
-    accountButton.textContent = '👤';
+    accountButton.replaceChildren(icon('user'));
     cloud.onUser((user) => {
-      accountButton.replaceChildren(user ? avatar(user, 26) : '👤');
+      accountButton.replaceChildren(user ? avatar(user, 26) : icon('user'));
       accountButton.title = user ? `${user.name} · Моите въпроси` : 'Влез · Моите въпроси';
     });
 
@@ -139,7 +143,7 @@ export class App {
       h(
         'footer',
         { class: 'footer' },
-        'Оригинална куиз игра · Направено с ❤ и TypeScript · ',
+        'Оригинална куиз игра · ',
         h(
           'a',
           {
@@ -188,24 +192,26 @@ export class App {
       ),
     );
     try {
-      const [bank] = await Promise.all([
-        loadQuestionBank(`${import.meta.env.BASE_URL}questions/`),
-        this.pack.load(import.meta.env.BASE_URL),
-      ]);
+      const [bank] = await Promise.all([this.loadBank(), this.pack.load(import.meta.env.BASE_URL)]);
       this.ctx = this.createContext(bank);
       const packId = cloud.enabled ? packIdFromUrl() : null;
       if (packId) this.ctx.go.pack(packId);
       else this.ctx.go.menu();
       // Accounts load in the background, so the top bar knows who is signed in.
-      if (cloud.enabled)
+      if (cloud.enabled) {
+        // Progress follows the account; when it arrives, refresh the menu's records.
+        startProgressSync(() => {
+          if (this.root.dataset.screen === 'menu') this.ctx?.go.menu();
+        });
         setTimeout(() => void cloud.load().catch(console.error), packId ? 0 : 1200);
+      }
     } catch (error) {
       console.error(error);
       this.stageEl.replaceChildren(
         h(
           'div',
           { class: 'card error' },
-          h('h1', null, 'Нещо се обърка 😕'),
+          h('h1', null, 'Нещо се обърка'),
           h('p', null, 'Въпросите не успяха да се заредят. Провери връзката и опитай пак.'),
           h(
             'button',
@@ -215,6 +221,22 @@ export class App {
         ),
       );
     }
+  }
+
+  /**
+   * The official questions: from Firestore (cached in the browser) when the site has a
+   * Firebase project, otherwise or on failure from the JSON files shipped with the site.
+   */
+  private async loadBank(): Promise<QuestionBank> {
+    if (cloud.enabled) {
+      try {
+        const bank = await loadCloudBank();
+        if (bank) return bank;
+      } catch (error) {
+        console.warn('Questions from Firestore unavailable, using the built-in ones', error);
+      }
+    }
+    return loadQuestionBank(`${import.meta.env.BASE_URL}questions/`);
   }
 
   private createContext(bank: QuestionBank): AppContext {
@@ -245,6 +267,7 @@ export class App {
         pack: (id: string, preloaded?: Pack) =>
           this.show('pack', packScreen(ctx, id, preloaded), id),
         browse: () => this.show('browse', browseScreen(ctx)),
+        admin: () => this.show('admin', adminScreen(ctx)),
       },
     };
     return ctx;
@@ -295,7 +318,7 @@ export class App {
   }
 
   private renderMute(): void {
-    this.muteButton.textContent = this.audio.muted ? '🔇' : '🔊';
+    this.muteButton.replaceChildren(icon(this.audio.muted ? 'volume-off' : 'volume-on'));
     this.muteButton.setAttribute('aria-label', this.audio.muted ? 'Включи звука' : 'Изключи звука');
     this.muteButton.setAttribute('aria-pressed', String(this.audio.muted));
   }
@@ -345,16 +368,16 @@ export class App {
 
     const noVoice = !this.voice.available && !this.pack.ready;
     openModal({
-      title: '⚙️ Настройки',
+      title: 'Настройки',
       body: h(
         'div',
         { class: 'settings' },
-        h('label', { class: 'settings__volume' }, '🔊 Сила на звука', volume),
-        toggle('music', '🎵 Музика', null, (on) => this.audio.setMusic(on)),
+        h('label', { class: 'settings__volume' }, 'Сила на звука', volume),
+        toggle('music', 'Музика', null, (on) => this.audio.setMusic(on)),
         this.pack.ready
           ? toggle(
               'recordedVoice',
-              '🎙️ Записан глас (Azure „Борислав“)',
+              'Записан глас (Azure „Борислав“)',
               'Еднакво хубав във всеки браузър. Изключи, за да чуваш гласа на браузъра.',
               (on) => (this.narrator.recorded = on),
             )
@@ -362,7 +385,7 @@ export class App {
         this.voice.available ? this.voicePicker() : null,
         toggle(
           'voice',
-          '🎙️ Гласът на водещия',
+          'Гласът на водещия',
           noVoice
             ? 'Браузърът ти няма български глас. Пробвай с Microsoft Edge.'
             : 'Водещият говори на глас.',
@@ -371,21 +394,21 @@ export class App {
         ),
         toggle(
           'readQuestions',
-          '📖 Водещият чете въпросите',
+          'Водещият чете въпросите',
           'Таймерът тръгва, след като ги прочете.',
           () => {},
           noVoice,
         ),
         toggle(
           'confirmFinalAnswer',
-          '❓ „Последен отговор?“',
+          '„Последен отговор?“',
           'Потвърждение, преди да заключиш.',
           () => {},
         ),
         fullscreenSupported()
           ? toggle(
               'fullscreen',
-              '⛶ Цял екран при влизане',
+              'Цял екран при влизане',
               'Играта минава на цял екран при първото кликване. Изход: Esc или F.',
               (on) => void (on ? enterFullscreen() : undefined),
             )
@@ -414,7 +437,7 @@ export class App {
         h(
           'option',
           { value: v.name, selected: v.name === preferred },
-          `${v.natural ? '✨ ' : ''}${v.label}`,
+          `${v.label}${v.natural ? ' (естествен)' : ''}`,
         ),
       ),
     );
@@ -430,7 +453,7 @@ export class App {
     return h(
       'div',
       { class: 'settings__voice' },
-      h('span', { class: 'settings__label' }, '🗣️ Глас'),
+      h('span', { class: 'settings__label' }, 'Глас'),
       h(
         'div',
         { class: 'settings__row' },

@@ -19,8 +19,9 @@ import type { AppContext, Screen } from '../context.ts';
 import { h, replace } from '../dom.ts';
 import { enterFullscreen } from '../fullscreen.ts';
 import { packUrl, shareLink } from '../links.ts';
+import { icon } from '../icons.ts';
 
-const copyLinkButton = (pack: Pack, label = '🔗 Копирай линка') => {
+const copyLinkButton = (pack: Pack, label = 'Копирай линка') => {
   const button = h(
     'button',
     {
@@ -28,8 +29,8 @@ const copyLinkButton = (pack: Pack, label = '🔗 Копирай линка') =>
       class: 'btn btn--ghost btn--sm',
       onClick: async () => {
         const ok = await shareLink(pack.title, packUrl(pack.id));
-        button.textContent = ok ? '✔ Копирано!' : '😕 Не стана';
-        setTimeout(() => (button.textContent = label), 2000);
+        button.replaceChildren(icon(ok ? 'check' : 'x'), ok ? 'Копирано' : 'Не стана');
+        setTimeout(() => button.replaceChildren(icon('link'), label), 2000);
       },
     },
     label,
@@ -40,7 +41,7 @@ const copyLinkButton = (pack: Pack, label = '🔗 Копирай линка') =>
 // ─── My packs ────────────────────────────────────────────────────────────────
 
 export function myPacksScreen(ctx: AppContext): Screen {
-  const back = backTo('← Меню', () => ctx.go.menu());
+  const back = backTo('Меню', () => ctx.go.menu());
   const body = h('div', { class: 'packs' });
 
   const stop = withCloud(ctx, body, (service, user) => {
@@ -59,6 +60,12 @@ export function myPacksScreen(ctx: AppContext): Screen {
 
   async function renderMine(service: CloudService, user: CloudUser) {
     const list = h('div', { class: 'pack-list' }, loadingBox('Зареждаме пакетите ти…'));
+    const adminLink = h(
+      'button',
+      { type: 'button', class: 'btn btn--ghost', hidden: true, onClick: () => ctx.go.admin() },
+      icon('shield'),
+      'Администрация',
+    );
     replace(
       body,
       h(
@@ -69,7 +76,7 @@ export function myPacksScreen(ctx: AppContext): Screen {
           'div',
           { class: 'profile__text' },
           h('strong', null, user.name),
-          h('small', null, 'Профил в Google'),
+          h('small', null, `Вход с ${user.provider}`),
         ),
         h(
           'button',
@@ -87,16 +94,20 @@ export function myPacksScreen(ctx: AppContext): Screen {
         h(
           'button',
           { type: 'button', class: 'btn btn--primary', onClick: () => ctx.go.editPack(null) },
-          '＋ Нов пакет',
+          icon('plus'),
+          'Нов пакет',
         ),
         h(
           'button',
           { type: 'button', class: 'btn btn--ghost', onClick: () => ctx.go.browse() },
-          '🌍 Пакети на играчите',
+          icon('globe'),
+          'Пакети на играчите',
         ),
+        adminLink,
       ),
       list,
     );
+    void service.isAdmin().then((admin) => (adminLink.hidden = !admin));
 
     try {
       const packs = await service.myPacks();
@@ -160,15 +171,17 @@ export function myPacksScreen(ctx: AppContext): Screen {
                 class: 'btn btn--primary btn--sm',
                 onClick: () => ctx.go.pack(pack.id, pack),
               },
-              '▶ Играй',
+              icon('play'),
+              'Играй',
             )
           : null,
         h(
           'button',
           { type: 'button', class: 'btn btn--ghost btn--sm', onClick: () => ctx.go.editPack(pack) },
-          '✏️ Редактирай',
+          icon('pencil'),
+          'Редактирай',
         ),
-        pack.visibility === 'private' ? null : copyLinkButton(pack, '🔗 Линк'),
+        pack.visibility === 'private' ? null : copyLinkButton(pack, 'Линк'),
         h(
           'button',
           {
@@ -204,7 +217,7 @@ export function myPacksScreen(ctx: AppContext): Screen {
                 ],
               }),
           },
-          '🗑',
+          icon('trash'),
         ),
       ),
     );
@@ -214,7 +227,7 @@ export function myPacksScreen(ctx: AppContext): Screen {
     'section',
     { class: 'screen info' },
     back,
-    h('h1', { class: 'info__title' }, '📝 Моите въпроси'),
+    h('h1', { class: 'info__title' }, icon('notebook-pen'), 'Моите въпроси'),
     body,
   );
   return { el, focus: back, destroy: stop };
@@ -223,7 +236,7 @@ export function myPacksScreen(ctx: AppContext): Screen {
 // ─── Public catalogue ────────────────────────────────────────────────────────
 
 export function browseScreen(ctx: AppContext): Screen {
-  const back = backTo('← Меню', () => ctx.go.menu());
+  const back = backTo('Меню', () => ctx.go.menu());
   const body = h('div', { class: 'packs' });
 
   const stop = withCloud(ctx, body, (service) => {
@@ -271,7 +284,7 @@ export function browseScreen(ctx: AppContext): Screen {
                         ? h('span', { class: 'pack-row__desc' }, pack.description)
                         : null,
                     ),
-                    h('span', { class: 'btn__arrow', 'aria-hidden': 'true' }, '→'),
+                    icon('arrow-right', { class: 'btn__arrow' }),
                   ),
                 ),
               ),
@@ -287,7 +300,7 @@ export function browseScreen(ctx: AppContext): Screen {
     'section',
     { class: 'screen info' },
     back,
-    h('h1', { class: 'info__title' }, '🌍 Пакети на играчите'),
+    h('h1', { class: 'info__title' }, icon('globe'), 'Пакети на играчите'),
     body,
   );
   return { el, focus: back, destroy: stop };
@@ -296,7 +309,7 @@ export function browseScreen(ctx: AppContext): Screen {
 // ─── One pack: details and start ─────────────────────────────────────────────
 
 export function packScreen(ctx: AppContext, id: string, preloaded?: Pack): Screen {
-  const back = backTo('← Меню', () => ctx.go.menu());
+  const back = backTo('Меню', () => ctx.go.menu());
   const body = h('div', { class: 'packs' });
   let pack: Pack | null = preloaded ?? null;
 
@@ -320,7 +333,8 @@ export function packScreen(ctx: AppContext, id: string, preloaded?: Pack): Scree
             h(
               'button',
               { type: 'button', class: 'btn btn--ghost btn--sm', onClick: () => ctx.go.browse() },
-              '🌍 Други пакети',
+              icon('globe'),
+              'Други пакети',
             ),
           ),
         );
@@ -329,6 +343,34 @@ export function packScreen(ctx: AppContext, id: string, preloaded?: Pack): Scree
 
   function render(service: CloudService, p: Pack, user: CloudUser | null) {
     const isOwner = user?.uid === p.ownerId;
+    // Admins can take down any pack (the rules check it again).
+    const adminDelete = h(
+      'button',
+      {
+        type: 'button',
+        class: 'btn btn--danger btn--sm',
+        hidden: true,
+        onClick: () =>
+          openModal({
+            title: 'Да изтрия ли пакета?',
+            body: h('p', null, `„${p.title}“ от ${p.ownerName} ще бъде изтрит за всички.`),
+            actions: [
+              { label: 'Отказ' },
+              {
+                label: 'Изтрий',
+                variant: 'danger',
+                onClick: () =>
+                  void service
+                    .deletePack(p.id)
+                    .then(() => ctx.go.browse())
+                    .catch((e) => alert(cloudErrorMessage(e))),
+              },
+            ],
+          }),
+      },
+      icon('trash'),
+      'Изтрий (админ)',
+    );
     const settings = loadSettings();
     let mode: ModeId = settings.lastMode;
 
@@ -378,7 +420,7 @@ export function packScreen(ctx: AppContext, id: string, preloaded?: Pack): Scree
         },
       },
       'Към студиото',
-      h('span', { class: 'btn__arrow', 'aria-hidden': 'true' }, '→'),
+      icon('arrow-right', { class: 'btn__arrow' }),
     );
 
     replace(
@@ -428,7 +470,8 @@ export function packScreen(ctx: AppContext, id: string, preloaded?: Pack): Scree
                 class: 'btn btn--ghost btn--sm',
                 onClick: () => ctx.go.editPack(p),
               },
-              '✏️ Редактирай',
+              icon('pencil'),
+              'Редактирай',
             )
           : h(
               'button',
@@ -437,10 +480,13 @@ export function packScreen(ctx: AppContext, id: string, preloaded?: Pack): Scree
                 class: 'btn btn--ghost btn--sm',
                 onClick: () => report(service, p, user),
               },
-              '⚑ Докладвай',
+              icon('flag'),
+              'Докладвай',
             ),
+        adminDelete,
       ),
     );
+    if (user && !isOwner) void service.isAdmin().then((admin) => (adminDelete.hidden = !admin));
     if (playable) start.focus({ preventScroll: true });
   }
 
@@ -462,7 +508,7 @@ export function packScreen(ctx: AppContext, id: string, preloaded?: Pack): Scree
     });
     const status = h('p', { class: 'notice__error', role: 'alert' });
     const close = openModal({
-      title: `⚑ Докладвай „${p.title}“`,
+      title: `Докладвай „${p.title}“`,
       body: [reason, status],
       actions: [
         { label: 'Отказ' },

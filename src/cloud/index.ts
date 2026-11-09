@@ -11,6 +11,8 @@ export interface CloudUser {
   uid: string;
   name: string;
   photoUrl: string | null;
+  /** How they signed in: "Google" or "имейл". */
+  provider: string;
 }
 
 export type CloudService = typeof Service;
@@ -70,7 +72,17 @@ const MESSAGES: Record<string, string> = {
   'auth/unauthorized-domain':
     'Този адрес не е разрешен за вход. Добави го във Firebase → Authentication → Settings → Authorized domains.',
   'auth/operation-not-allowed':
-    'Входът с Google не е включен във Firebase (Authentication → Sign-in method).',
+    'Този начин на вход не е включен във Firebase (Authentication → Sign-in method).',
+  'auth/invalid-credential': 'Грешен имейл или парола.',
+  'auth/wrong-password': 'Грешен имейл или парола.',
+  'auth/user-not-found': 'Няма профил с този имейл.',
+  'auth/email-already-in-use': 'Вече има профил с този имейл. Влез с него.',
+  'auth/weak-password': 'Паролата трябва да е поне 6 знака.',
+  'auth/invalid-email': 'Това не прилича на имейл адрес.',
+  'auth/missing-password': 'Въведи парола.',
+  'auth/too-many-requests': 'Твърде много опити. Опитай пак след малко.',
+  'auth/account-exists-with-different-credential':
+    'С този имейл вече си влизал по друг начин. Влез както предишния път.',
 };
 
 /** Codes that just mean "the player closed the sign-in window". */
