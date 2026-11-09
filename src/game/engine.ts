@@ -127,8 +127,20 @@ export class Game {
 
   canUseLifeline(id: LifelineId): boolean {
     return (
-      this.phase === 'question' && this.mode.lifelines.includes(id) && !this.usedLifelines.has(id)
+      this.phase === 'question' &&
+      this.mode.lifelines.includes(id) &&
+      !this.usedLifelines.has(id) &&
+      (id !== 'switch' || this.hasSpareQuestion)
     );
+  }
+
+  /**
+   * A switch uses up a question, so it is only offered while there are more unseen
+   * questions than the remaining levels need (small player-made packs run out).
+   */
+  private get hasSpareQuestion(): boolean {
+    const unseen = this.pool.filter((q) => !this.seenIds.has(q.id)).length;
+    return unseen > LEVEL_COUNT - this.level;
   }
 
   select(index: AnswerIndex): void {

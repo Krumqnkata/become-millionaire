@@ -1,3 +1,4 @@
+import { cloud } from '../../cloud/index.ts';
 import { formatPrize } from '../../game/ladder.ts';
 import { LIFELINES } from '../../game/lifelines.ts';
 import { MODE_ORDER, MODES } from '../../game/modes.ts';
@@ -206,6 +207,20 @@ export function menuScreen(ctx: AppContext): Screen {
         { type: 'button', class: 'btn btn--ghost', onClick: () => ctx.go.hallOfFame() },
         '🏆 Зала на славата',
       ),
+      cloud.enabled
+        ? h(
+            'button',
+            { type: 'button', class: 'btn btn--ghost', onClick: () => ctx.go.myPacks() },
+            '📝 Мои въпроси',
+          )
+        : null,
+      cloud.enabled
+        ? h(
+            'button',
+            { type: 'button', class: 'btn btn--ghost', onClick: () => ctx.go.browse() },
+            '🌍 Пакети на играчите',
+          )
+        : null,
     ),
     stats.gamesPlayed > 0
       ? h(

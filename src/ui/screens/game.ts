@@ -11,7 +11,7 @@ import { createLadder } from '../components/ladder.ts';
 import { audiencePanel, callPanel, friendPicker } from '../components/lifeline-panels.ts';
 import { openModal } from '../components/modal.ts';
 import { createTimer, type TimerView } from '../components/timer.ts';
-import type { AppContext, Screen } from '../context.ts';
+import type { AppContext, PlaySource, Screen } from '../context.ts';
 import { h, prefersReducedMotion, replace, wait } from '../dom.ts';
 
 const KEY_TO_ANSWER: Record<string, AnswerIndex> = {
@@ -42,19 +42,25 @@ const tierOf = (level: number) => (level <= 5 ? 1 : level <= 10 ? 2 : 3);
 /** Extra silence before the reveal grows with the stakes. */
 const suspenseFor = (level: number) => (prefersReducedMotion() ? 300 : 500 + level * 90);
 
-export function gameScreen(ctx: AppContext, modeId: ModeId, categories: string[]): Screen {
+export function gameScreen(
+  ctx: AppContext,
+  modeId: ModeId,
+  categories: string[],
+  source?: PlaySource,
+): Screen {
   const mode = MODES[modeId];
+  const bank = source?.bank ?? ctx.bank;
   const settings = loadSettings();
   const playerName = settings.playerName.trim();
   const game = new Game({
     mode,
-    pool: ctx.bank.questions,
+    pool: bank.questions,
     categories: new Set(categories),
     recent: loadRecentQuestionIds(),
-    // Recorded questions are read in their recorded order.
-    shuffle: !ctx.narrator.usingRecordings,
+    // Recorded questions are read in their recorded order. Player-made packs have no recordings.
+    shuffle: source !== undefined || !ctx.narrator.usingRecordings,
   });
-  const categoryById = new Map(ctx.bank.categories.map((c) => [c.id, c]));
+  const categoryById = new Map(bank.categories.map((c) => [c.id, c]));
   const host = createHost(ctx.narrator, ctx.audio);
 
   let timer: TimerView | null = null;
@@ -492,7 +498,7 @@ export function gameScreen(ctx: AppContext, modeId: ModeId, categories: string[]
         explanation(),
         h(
           'button',
-          { type: 'button', class: 'btn btn--primary', onClick: () => ctx.go.result(game) },
+          { type: 'button', class: 'btn btn--primary', onClick: () => ctx.go.result(game, source) },
           '🏆 Към наградата',
         ),
       );
@@ -551,7 +557,7 @@ export function gameScreen(ctx: AppContext, modeId: ModeId, categories: string[]
 
     const toResult = h(
       'button',
-      { type: 'button', class: 'btn btn--primary', onClick: () => ctx.go.result(game) },
+      { type: 'button', class: 'btn btn--primary', onClick: () => ctx.go.result(game, source) },
       'Виж резултата',
       h('span', { class: 'btn__arrow', 'aria-hidden': 'true' }, '→'),
     );
@@ -751,7 +757,7 @@ export function gameScreen(ctx: AppContext, modeId: ModeId, categories: string[]
       actionBar,
       h(
         'button',
-        { type: 'button', class: 'btn btn--primary', onClick: () => ctx.go.result(game) },
+        { type: 'button', class: 'btn btn--primary', onClick: () => ctx.go.result(game, source) },
         'Към резултата →',
       ),
     );
@@ -769,7 +775,11 @@ export function gameScreen(ctx: AppContext, modeId: ModeId, categories: string[]
       ),
       h(
         'button',
-        { type: 'button', class: 'btn btn--ghost btn--sm', onClick: () => ctx.go.result(game) },
+        {
+          type: 'button',
+          class: 'btn btn--ghost btn--sm',
+          onClick: () => ctx.go.result(game, source),
+        },
         'Пропусни',
       ),
     );
@@ -794,7 +804,7 @@ export function gameScreen(ctx: AppContext, modeId: ModeId, categories: string[]
       explanation(),
       h(
         'button',
-        { type: 'button', class: 'btn btn--primary', onClick: () => ctx.go.result(game) },
+        { type: 'button', class: 'btn btn--primary', onClick: () => ctx.go.result(game, source) },
         'Към резултата →',
       ),
     );
@@ -834,7 +844,7 @@ export function gameScreen(ctx: AppContext, modeId: ModeId, categories: string[]
         if (event.target instanceof HTMLButtonElement) return; // let the focused button handle it
         if (game.phase === 'question' && game.selected !== null) void lockIn();
         else if (game.phase === 'correct') goNext();
-        else if (game.phase === 'finished' && !guessing) ctx.go.result(game);
+        else if (game.phase === 'finished' && !guessing) ctx.go.result(game, source);
         break;
       case 'Escape':
         if (el.classList.contains('is-ladder-open')) toggleLadder(false);

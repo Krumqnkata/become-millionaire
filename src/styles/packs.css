@@ -1,0 +1,475 @@
+/* ==========================================================================
+   Accounts and player-made packs: my packs, the catalogue, a pack's page
+   and the editor.
+   ========================================================================== */
+
+/* ── Shared bits ──────────────────────────────────────────────────────────── */
+
+.loading--inline {
+  padding: 8vh 0;
+}
+
+.notice {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  padding: clamp(20px, 4vw, 34px);
+  text-align: center;
+}
+
+.notice > p {
+  max-width: 460px;
+  color: var(--muted);
+}
+
+.notice__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.notice__fine {
+  color: var(--faint);
+  font-size: 0.8rem;
+}
+
+.notice__error {
+  color: #ff8fa2;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.notice__error:empty {
+  display: none;
+}
+
+.google-g {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  color: #4285f4;
+  font: 800 0.8rem var(--font-body);
+}
+
+.avatar {
+  display: block;
+  flex: none;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.avatar--letter {
+  display: grid;
+  place-items: center;
+  background: var(--gold-gradient);
+  color: #1a1404;
+  font-weight: 800;
+  font-size: 0.8em;
+}
+
+.icon-btn--account {
+  overflow: hidden;
+}
+
+.icon-btn--sm {
+  width: 32px;
+  height: 32px;
+  font-size: 0.9rem;
+}
+
+.icon-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.badge {
+  display: inline-block;
+  padding: 1px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.badge--public {
+  border-color: rgba(47, 209, 122, 0.45);
+  color: #8df0b9;
+}
+
+.badge--link {
+  border-color: rgba(77, 124, 255, 0.5);
+  color: #a9c0ff;
+}
+
+.link-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--gold);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.textarea {
+  min-height: auto;
+  border-radius: var(--radius-sm);
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.textarea--code {
+  width: 100%;
+  font:
+    0.85rem/1.4 ui-monospace,
+    'Cascadia Code',
+    Consolas,
+    monospace;
+}
+
+.file-input {
+  max-width: 100%;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+/* ── My packs and the catalogue ───────────────────────────────────────────── */
+
+.packs {
+  display: grid;
+  gap: 16px;
+}
+
+.profile {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+}
+
+.profile__text {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+
+.profile__text small {
+  color: var(--faint);
+}
+
+.packs__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.pack-list {
+  display: grid;
+  gap: 12px;
+}
+
+.pack-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 18px;
+  padding: 16px 20px;
+}
+
+.pack-row--link {
+  width: 100%;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.2s,
+    transform 0.2s var(--ease-out);
+}
+
+.pack-row--link:hover {
+  border-color: var(--gold);
+  transform: translateY(-2px);
+}
+
+.pack-row__main {
+  display: grid;
+  flex: 1 1 260px;
+  gap: 4px;
+  min-width: 0;
+}
+
+.pack-row__title {
+  font: 600 1.05rem var(--font-display);
+  overflow-wrap: anywhere;
+}
+
+.pack-row__meta {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.pack-row__desc {
+  color: var(--faint);
+  font-size: 0.88rem;
+}
+
+.pack-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ── A pack's page ────────────────────────────────────────────────────────── */
+
+.pack-hero__meta {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.pack-hero__title {
+  font: 800 clamp(1.5rem, 5vw, 2.4rem) / 1.15 var(--font-display);
+  overflow-wrap: anywhere;
+}
+
+.pack-hero__desc {
+  color: var(--muted);
+}
+
+.mode-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mode-pill {
+  padding: 9px 18px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    border-color 0.2s,
+    background 0.2s;
+}
+
+.mode-pill[aria-checked='true'] {
+  border-color: var(--accent, var(--gold));
+  background: color-mix(in srgb, var(--accent, var(--gold)) 16%, transparent);
+}
+
+/* ── Editor ───────────────────────────────────────────────────────────────── */
+
+.editor__form {
+  display: grid;
+  gap: 16px;
+}
+
+.editor__meta {
+  display: grid;
+  gap: 16px;
+  padding: clamp(16px, 3vw, 26px);
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.field__label {
+  padding: 0;
+  font-weight: 800;
+  font-size: 0.9rem;
+}
+
+.choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.choices > legend {
+  margin-bottom: 6px;
+}
+
+.choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.choice:has(input:checked) {
+  border-color: var(--gold);
+  background: rgba(245, 197, 66, 0.1);
+}
+
+.choice input {
+  margin-top: 4px;
+  accent-color: var(--gold);
+}
+
+.choice__body {
+  display: grid;
+}
+
+.choice__body small {
+  color: var(--faint);
+}
+
+.editor__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.editor__count {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.editor__count.is-ready {
+  color: var(--green);
+}
+
+.editor__io {
+  display: flex;
+  gap: 8px;
+}
+
+.q-list {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.q-card {
+  display: grid;
+  gap: 10px;
+  padding: 14px clamp(12px, 3vw, 20px) 16px;
+}
+
+.q-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.q-card__num {
+  color: var(--gold);
+  font: 600 0.9rem var(--font-display);
+}
+
+.q-card__tools {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.select--sm {
+  flex: none;
+  min-height: 32px;
+  padding: 4px 10px;
+  font-size: 0.85rem;
+}
+
+.q-answers {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.q-answer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.q-answer__pick {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.q-answer__pick input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--green);
+}
+
+.q-answer__letter {
+  width: 1.2em;
+  color: var(--gold);
+  font-weight: 800;
+}
+
+.q-answer:has(input[type='radio']:checked) .input {
+  border-color: rgba(47, 209, 122, 0.7);
+  background: rgba(47, 209, 122, 0.08);
+}
+
+.editor__problems:empty {
+  display: none;
+}
+
+.editor__problems {
+  padding: 14px 18px;
+  border: 1px solid rgba(255, 77, 106, 0.5);
+  border-radius: var(--radius);
+  background: rgba(255, 77, 106, 0.1);
+  color: #ffc2cc;
+  font-size: 0.9rem;
+}
+
+.editor__problems ul {
+  margin: 6px 0 0;
+  padding-left: 20px;
+}
+
+.editor__save {
+  position: sticky;
+  bottom: 12px;
+  z-index: 5;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.editor__save .btn {
+  box-shadow:
+    0 14px 36px -10px rgba(0, 0, 0, 0.8),
+    0 10px 30px -10px rgba(245, 197, 66, 0.7);
+}
+
+@media (max-width: 640px) {
+  .q-answers {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .editor__save .btn {
+    width: 100%;
+  }
+}

@@ -1,8 +1,10 @@
 import { ShowAudio } from '../audio/engine.ts';
+import { cloud } from '../cloud/index.ts';
 import { Narrator } from '../audio/narrator.ts';
 import { VoicePack } from '../audio/voice-pack.ts';
 import { Voice } from '../audio/voice.ts';
 import type { Game } from '../game/engine.ts';
+import type { Pack } from '../game/packs.ts';
 import { formatPrize } from '../game/ladder.ts';
 import { loadQuestionBank, type QuestionBank } from '../game/questions.ts';
 import type { ModeId } from '../game/types.ts';
@@ -11,7 +13,8 @@ import { loadSettings, saveSettings, type Settings } from '../storage/stats.ts';
 import { Confetti } from './components/confetti.ts';
 import { logoMark } from './components/logo.ts';
 import { openModal } from './components/modal.ts';
-import type { AppContext, Screen, StageState } from './context.ts';
+import { avatar } from './components/cloud-ui.ts';
+import type { AppContext, PlaySource, Screen, StageState } from './context.ts';
 import { h } from './dom.ts';
 import {
   enterFullscreen,
@@ -20,9 +23,12 @@ import {
   onFullscreenChange,
   toggleFullscreen,
 } from './fullscreen.ts';
+import { packIdFromUrl, showPackInUrl } from './links.ts';
 import { gameScreen } from './screens/game.ts';
 import { hallOfFameScreen, rulesScreen } from './screens/info.ts';
 import { menuScreen } from './screens/menu.ts';
+import { packEditorScreen } from './screens/pack-editor.ts';
+import { browseScreen, myPacksScreen, packScreen } from './screens/packs.ts';
 import { resultScreen } from './screens/result.ts';
 
 /** Owns the persistent chrome (top bar, live region, confetti, audio) and swaps screens. */
@@ -83,12 +89,27 @@ export class App {
       '⚙️',
     );
 
+    // Accounts: only when Firebase is configured. Shows the player's picture once signed in.
+    const accountButton = h('button', {
+      type: 'button',
+      class: 'icon-btn icon-btn--account',
+      hidden: !cloud.enabled,
+      title: 'Моите въпроси',
+      'aria-label': 'Моите въпроси',
+      onClick: () => this.leaveTo(() => this.ctx?.go.myPacks()),
+    });
+    accountButton.textContent = '👤';
+    cloud.onUser((user) => {
+      accountButton.replaceChildren(user ? avatar(user, 26) : '👤');
+      accountButton.title = user ? `${user.name} · Моите въпроси` : 'Влез · Моите въпроси';
+    });
+
     const home = h(
       'button',
       {
         type: 'button',
         class: 'brand',
-        onClick: () => this.confirmLeave(),
+        onClick: () => this.leaveTo(() => this.ctx?.go.menu()),
         'aria-label': 'Към менюто',
       },
       logoMark(30),
@@ -105,7 +126,14 @@ export class App {
         'header',
         { class: 'topbar' },
         home,
-        h('div', { class: 'topbar__actions' }, fullscreenButton, settingsButton, this.muteButton),
+        h(
+          'div',
+          { class: 'topbar__actions' },
+          accountButton,
+          fullscreenButton,
+          settingsButton,
+          this.muteButton,
+        ),
       ),
       this.stageEl,
       h(
@@ -165,7 +193,12 @@ export class App {
         this.pack.load(import.meta.env.BASE_URL),
       ]);
       this.ctx = this.createContext(bank);
-      this.ctx.go.menu();
+      const packId = cloud.enabled ? packIdFromUrl() : null;
+      if (packId) this.ctx.go.pack(packId);
+      else this.ctx.go.menu();
+      // Accounts load in the background, so the top bar knows who is signed in.
+      if (cloud.enabled)
+        setTimeout(() => void cloud.load().catch(console.error), packId ? 0 : 1200);
     } catch (error) {
       console.error(error);
       this.stageEl.replaceChildren(
@@ -201,17 +234,25 @@ export class App {
       },
       go: {
         menu: () => this.show('menu', menuScreen(ctx)),
-        play: (mode: ModeId, categories: string[]) =>
-          this.show('game', gameScreen(ctx, mode, categories)),
-        result: (game: Game) => this.show('result', resultScreen(ctx, game)),
+        play: (mode: ModeId, categories: string[], source?: PlaySource) =>
+          this.show('game', gameScreen(ctx, mode, categories, source)),
+        result: (game: Game, source?: PlaySource) =>
+          this.show('result', resultScreen(ctx, game, source)),
         rules: () => this.show('rules', rulesScreen(ctx)),
         hallOfFame: () => this.show('hall-of-fame', hallOfFameScreen(ctx)),
+        myPacks: () => this.show('my-packs', myPacksScreen(ctx)),
+        editPack: (pack: Pack | null) => this.show('pack-editor', packEditorScreen(ctx, pack)),
+        pack: (id: string, preloaded?: Pack) =>
+          this.show('pack', packScreen(ctx, id, preloaded), id),
+        browse: () => this.show('browse', browseScreen(ctx)),
       },
     };
     return ctx;
   }
 
-  private show(name: string, screen: Screen): void {
+  /** `packId` keeps a pack's link in the address bar while its page is open. */
+  private show(name: string, screen: Screen, packId: string | null = null): void {
+    showPackInUrl(packId);
     this.current?.destroy?.();
     this.narrator.stop();
     this.current = screen;
@@ -225,14 +266,22 @@ export class App {
     screen.focus?.focus({ preventScroll: true });
   }
 
-  /** Leaving a running game from the logo asks first. */
-  private confirmLeave(): void {
-    const leave = () => this.ctx?.go.menu();
-    if (this.root.dataset.screen !== 'game') return leave();
+  /** Leaving a running game or unsaved changes from the top bar asks first. */
+  private leaveTo(leave: () => void): void {
+    if (this.root.dataset.screen === 'game') {
+      openModal({
+        title: 'Да прекратиш ли играта?',
+        body: h('p', null, 'Текущата игра ще бъде загубена и няма да се запише.'),
+        actions: [{ label: 'Остани' }, { label: 'Излез', variant: 'danger', onClick: leave }],
+      });
+      return;
+    }
+    const warning = this.current?.leaveWarning?.();
+    if (!warning) return leave();
     openModal({
-      title: 'Да прекратиш ли играта?',
-      body: h('p', null, 'Текущата игра ще бъде загубена и няма да се запише.'),
-      actions: [{ label: 'Остани' }, { label: 'Към менюто', variant: 'danger', onClick: leave }],
+      title: 'Да изляза ли без запазване?',
+      body: h('p', null, warning),
+      actions: [{ label: 'Остани' }, { label: 'Излез', variant: 'danger', onClick: leave }],
     });
   }
 

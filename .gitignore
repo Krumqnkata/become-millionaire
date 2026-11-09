@@ -10,3 +10,8 @@ Thumbs.db
 .claude/
 .env*
 !.env.example
+!.env.emulators
+
+# Firebase emulators
+*-debug.log
+.firebase/

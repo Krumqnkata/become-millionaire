@@ -10,8 +10,9 @@ import {
   saveSettings,
 } from '../../storage/stats.ts';
 import { HOST, line } from '../../show/script.ts';
-import type { AppContext, Screen } from '../context.ts';
+import type { AppContext, PlaySource, Screen } from '../context.ts';
 import { h, prefersReducedMotion } from '../dom.ts';
+import { packUrl } from '../links.ts';
 
 const HEADLINES = {
   won: { icon: '🏆', title: 'Милионер!', text: 'Изкачи цялата стълба. Невероятно!' },
@@ -44,20 +45,25 @@ function countUp(el: HTMLElement, target: number, duration = 1400) {
   requestAnimationFrame(step);
 }
 
-export function resultScreen(ctx: AppContext, game: Game): Screen {
+export function resultScreen(ctx: AppContext, game: Game, source?: PlaySource): Screen {
   const outcome = game.outcome ?? 'wrong';
   const winnings = game.winnings;
   const correctAnswers = outcome === 'won' ? LEVEL_COUNT : game.level - 1;
 
-  recordGame({ mode: game.mode.id, winnings, correctAnswers, won: outcome === 'won' });
-  rememberQuestionIds(game.seenIds);
+  // Player-made packs can be as easy as their author likes, so they stay out of the
+  // statistics and the Hall of Fame.
+  if (!source) {
+    recordGame({ mode: game.mode.id, winnings, correctAnswers, won: outcome === 'won' });
+    rememberQuestionIds(game.seenIds);
+  }
 
   const copy = HEADLINES[outcome];
   const amount = h('p', { class: 'result__amount' }, formatPrize(0));
   countUp(amount, winnings);
   if (outcome === 'won') setTimeout(() => ctx.confetti.celebrate(), 300);
 
-  const shareText = `Спечелих ${formatPrize(winnings)} в „Пътят към милиона“ (${game.mode.name}, ${correctAnswers}/${LEVEL_COUNT} верни). Можеш ли повече?`;
+  const where = source ? `с пакета „${source.pack.title}“` : `(${game.mode.name})`;
+  const shareText = `Спечелих ${formatPrize(winnings)} в „Пътят към милиона“ ${where}, ${correctAnswers}/${LEVEL_COUNT} верни. Можеш ли повече?`;
   const shareButton = h(
     'button',
     { type: 'button', class: 'btn btn--ghost', onClick: () => void share() },
@@ -65,7 +71,7 @@ export function resultScreen(ctx: AppContext, game: Game): Screen {
   );
 
   async function share() {
-    const url = location.href.split('#')[0] ?? location.href;
+    const url = source ? packUrl(source.pack.id) : (location.href.split('#')[0] ?? location.href);
     try {
       if (navigator.share) {
         await navigator.share({ title: 'Пътят към милиона', text: shareText, url });
@@ -78,14 +84,18 @@ export function resultScreen(ctx: AppContext, game: Game): Screen {
     }
   }
 
-  const fame = qualifiesForHallOfFame(winnings) ? hallOfFameForm(ctx, game, winnings) : null;
+  const fame = source
+    ? h('p', { class: 'hint' }, `📝 Пакет „${source.pack.title}“ от ${source.pack.ownerName}`)
+    : qualifiesForHallOfFame(winnings)
+      ? hallOfFameForm(ctx, game, winnings)
+      : null;
 
   const playAgain = h(
     'button',
     {
       type: 'button',
       class: 'btn btn--primary',
-      onClick: () => ctx.go.play(game.mode.id, [...game.categories]),
+      onClick: () => ctx.go.play(game.mode.id, [...game.categories], source),
     },
     '🔁 Играй пак',
   );
@@ -131,8 +141,12 @@ export function resultScreen(ctx: AppContext, game: Game): Screen {
         playAgain,
         h(
           'button',
-          { type: 'button', class: 'btn btn--ghost', onClick: () => ctx.go.menu() },
-          '🏠 Меню',
+          {
+            type: 'button',
+            class: 'btn btn--ghost',
+            onClick: () => (source ? ctx.go.pack(source.pack.id, source.pack) : ctx.go.menu()),
+          },
+          source ? '📝 Към пакета' : '🏠 Меню',
         ),
         shareButton,
       ),

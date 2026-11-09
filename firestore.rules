@@ -1,0 +1,71 @@
+rules_version = '2';
+
+// Who may read and write what. The web app's Firebase key is public, so these rules
+// are the only thing protecting the data. Tested in tests/rules/firestore.rules.test.ts
+// (`npm run test:rules`). Deploy with `npm run firebase:deploy`.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(data) {
+      return signedIn() && request.auth.uid == data.ownerId;
+    }
+
+    function text(value, min, max) {
+      return value is string && value.size() >= min && value.size() <= max;
+    }
+
+    // Rules can't loop over a list, so each question is checked by the app instead
+    // (in the editor and again when a pack is loaded). Here: the overall shape and size.
+    function validPack(d) {
+      return d.keys().hasOnly(['ownerId', 'ownerName', 'title', 'description', 'visibility',
+                               'questions', 'questionCount', 'createdAt', 'updatedAt'])
+        && d.keys().hasAll(['ownerId', 'ownerName', 'title', 'description', 'visibility',
+                            'questions', 'questionCount', 'createdAt', 'updatedAt'])
+        && text(d.ownerName, 1, 40)
+        && text(d.title, 1, 80)
+        && text(d.description, 0, 300)
+        && d.visibility in ['private', 'link', 'public']
+        && d.questions is list
+        && d.questions.size() >= 1
+        && d.questions.size() <= 100
+        && d.questionCount == d.questions.size()
+        // Only full games (15 questions) can be shared.
+        && (d.visibility == 'private' || d.questions.size() >= 15)
+        && d.updatedAt == request.time;
+    }
+
+    match /packs/{packId} {
+      // Opening a pack by id: shared ones (public or "anyone with the link") and your own.
+      allow get: if resource.data.visibility in ['public', 'link'] || isOwner(resource.data);
+      // Listing: only the public catalogue and your own packs, so link-only packs can't be found.
+      allow list: if resource.data.visibility == 'public' || isOwner(resource.data);
+
+      allow create: if isOwner(request.resource.data)
+        && validPack(request.resource.data)
+        && request.resource.data.createdAt == request.time;
+
+      allow update: if isOwner(resource.data)
+        && isOwner(request.resource.data)
+        && validPack(request.resource.data)
+        && request.resource.data.createdAt == resource.data.createdAt;
+
+      allow delete: if isOwner(resource.data);
+    }
+
+    // Players can report a pack; only the project owner reads reports (in the console).
+    match /reports/{reportId} {
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['packId', 'uid', 'reason', 'createdAt'])
+        && request.resource.data.keys().hasAll(['packId', 'uid', 'reason', 'createdAt'])
+        && request.resource.data.uid == request.auth.uid
+        && text(request.resource.data.packId, 1, 128)
+        && text(request.resource.data.reason, 1, 500)
+        && request.resource.data.createdAt == request.time;
+      allow read, update, delete: if false;
+    }
+  }
+}

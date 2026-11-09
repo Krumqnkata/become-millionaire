@@ -26,11 +26,24 @@ jobs:
           node-version: 24
           cache: npm
 
+      # Java runs the Firestore emulator for the security rules tests.
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
       - run: npm ci
       - run: npm run lint
       - run: npm run validate
       - run: npm test
+      - run: npm run test:rules
+      # Accounts are built in only when the FIREBASE_* repository variables exist.
       - run: npm run build
+        env:
+          VITE_FIREBASE_API_KEY: ${{ vars.FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_APP_ID: ${{ vars.FIREBASE_APP_ID }}
 
       - uses: actions/configure-pages@v6
 

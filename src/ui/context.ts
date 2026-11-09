@@ -2,6 +2,7 @@ import type { ShowAudio } from '../audio/engine.ts';
 import type { Narrator } from '../audio/narrator.ts';
 import type { Voice } from '../audio/voice.ts';
 import type { Game } from '../game/engine.ts';
+import type { Pack } from '../game/packs.ts';
 import type { QuestionBank } from '../game/questions.ts';
 import type { ModeId } from '../game/types.ts';
 import type { Confetti } from './components/confetti.ts';
@@ -12,6 +13,14 @@ export interface Screen {
   /** Element to focus after the screen is shown. */
   focus?: HTMLElement | null;
   destroy?: () => void;
+  /** A reason to confirm before leaving (e.g. unsaved changes), or `null`. */
+  leaveWarning?: () => string | null;
+}
+
+/** A game played with a player-made pack instead of the official questions. */
+export interface PlaySource {
+  pack: Pack;
+  bank: QuestionBank;
 }
 
 /**
@@ -35,9 +44,17 @@ export interface AppContext {
   stage(state: StageState, tier?: number): void;
   go: {
     menu(): void;
-    play(mode: ModeId, categories: string[]): void;
-    result(game: Game): void;
+    play(mode: ModeId, categories: string[], source?: PlaySource): void;
+    result(game: Game, source?: PlaySource): void;
     rules(): void;
     hallOfFame(): void;
+    /** The player's own packs (asks to sign in first). */
+    myPacks(): void;
+    /** The pack editor: an existing pack of the player's, or `null` for a new one. */
+    editPack(pack: Pack | null): void;
+    /** A pack's page: details, mode and start. `preloaded` skips fetching it again. */
+    pack(id: string, preloaded?: Pack): void;
+    /** Public packs made by players. */
+    browse(): void;
   };
 }

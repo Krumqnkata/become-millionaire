@@ -5,6 +5,7 @@ import '@fontsource/unbounded/600.css';
 import '@fontsource/unbounded/800.css';
 import './styles/main.css';
 import './styles/studio.css';
+import './styles/packs.css';
 
 import { App } from './ui/app.ts';
 
