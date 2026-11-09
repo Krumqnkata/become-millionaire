@@ -63,6 +63,8 @@ const MESSAGES: Record<string, string> = {
   unavailable: 'Няма връзка със сървъра. Провери интернета и опитай пак.',
   unauthenticated: 'Трябва да влезеш в профила си.',
   'resource-exhausted': 'Сървърът е претоварен. Опитай пак след малко.',
+  // A new index is still being built (a few minutes after `npm run firebase:deploy`).
+  'failed-precondition': 'Базата още се подготвя. Опитай пак след няколко минути.',
   'auth/popup-blocked': 'Браузърът блокира прозореца за вход. Разреши изскачащите прозорци.',
   'auth/network-request-failed': 'Няма връзка със сървъра. Провери интернета и опитай пак.',
   'auth/unauthorized-domain':
