@@ -404,6 +404,10 @@ body[data-stage='lock'] .answer:not(.is-locked) {
   gap: 8px;
 }
 
+.icon-btn[hidden] {
+  display: none;
+}
+
 .settings {
   display: grid;
   gap: 16px;

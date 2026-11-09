@@ -48,6 +48,8 @@ export interface Settings {
   voiceName: string;
   volume: number;
   confirmFinalAnswer: boolean;
+  /** Switch to fullscreen on the first click or key press. */
+  fullscreen: boolean;
   lastMode: ModeId;
   lastCategories: string[];
   playerName: string;
@@ -62,6 +64,7 @@ const DEFAULT_SETTINGS: Settings = {
   voiceName: '',
   volume: 0.8,
   confirmFinalAnswer: true,
+  fullscreen: true,
   lastMode: 'normal',
   lastCategories: [],
   playerName: '',
@@ -83,6 +86,7 @@ export function loadSettings(): Settings {
         ? stored.volume
         : DEFAULT_SETTINGS.volume,
     confirmFinalAnswer: bool(stored.confirmFinalAnswer, DEFAULT_SETTINGS.confirmFinalAnswer),
+    fullscreen: bool(stored.fullscreen, DEFAULT_SETTINGS.fullscreen),
     lastMode: isModeId(stored.lastMode) ? stored.lastMode : DEFAULT_SETTINGS.lastMode,
     lastCategories: Array.isArray(stored.lastCategories)
       ? stored.lastCategories.filter((c): c is string => typeof c === 'string')

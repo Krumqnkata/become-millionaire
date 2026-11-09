@@ -6,6 +6,7 @@ import { loadSettings, loadStats, saveSettings } from '../../storage/stats.ts';
 import { logoMark } from '../components/logo.ts';
 import type { AppContext, Screen } from '../context.ts';
 import { h } from '../dom.ts';
+import { enterFullscreen } from '../fullscreen.ts';
 
 function modeDetails(mode: GameMode): HTMLElement {
   return h(
@@ -130,6 +131,7 @@ export function menuScreen(ctx: AppContext): Screen {
       type: 'button',
       class: 'btn btn--primary btn--xl',
       onClick: () => {
+        if (loadSettings().fullscreen) void enterFullscreen();
         saveSettings({
           lastMode: mode,
           lastCategories: [...selected],

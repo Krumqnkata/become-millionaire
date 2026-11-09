@@ -1,0 +1,13 @@
+{
+  "name": "Пътят към милиона",
+  "short_name": "Към милиона",
+  "description": "Куиз шоу в браузъра: 15 въпроса, 4 жокера, водещ и един милион евро.",
+  "lang": "bg",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#070b1f",
+  "theme_color": "#070b1f",
+  "icons": [{ "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

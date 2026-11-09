@@ -13,6 +13,13 @@ import { logoMark } from './components/logo.ts';
 import { openModal } from './components/modal.ts';
 import type { AppContext, Screen, StageState } from './context.ts';
 import { h } from './dom.ts';
+import {
+  enterFullscreen,
+  fullscreenSupported,
+  isFullscreen,
+  onFullscreenChange,
+  toggleFullscreen,
+} from './fullscreen.ts';
 import { gameScreen } from './screens/game.ts';
 import { hallOfFameScreen, rulesScreen } from './screens/info.ts';
 import { menuScreen } from './screens/menu.ts';
@@ -46,6 +53,24 @@ export class App {
       title: 'Звук (M)',
     });
     this.renderMute();
+
+    // Fullscreen: a button in the top bar (where the browser supports it) and the F key.
+    const fullscreenButton = h('button', {
+      type: 'button',
+      class: 'icon-btn',
+      hidden: !fullscreenSupported(),
+      onClick: () => void toggleFullscreen(),
+    });
+    const renderFullscreen = () => {
+      const on = isFullscreen();
+      fullscreenButton.textContent = on ? '🗗' : '⛶';
+      fullscreenButton.title = on ? 'Изход от цял екран (F)' : 'Цял екран (F)';
+      fullscreenButton.setAttribute('aria-label', on ? 'Изход от цял екран' : 'Цял екран');
+      document.documentElement.classList.toggle('is-fullscreen', on);
+    };
+    renderFullscreen();
+    onFullscreenChange(renderFullscreen);
+
     const settingsButton = h(
       'button',
       {
@@ -80,7 +105,7 @@ export class App {
         'header',
         { class: 'topbar' },
         home,
-        h('div', { class: 'topbar__actions' }, settingsButton, this.muteButton),
+        h('div', { class: 'topbar__actions' }, fullscreenButton, settingsButton, this.muteButton),
       ),
       this.stageEl,
       h(
@@ -102,18 +127,26 @@ export class App {
     );
 
     // Browsers only allow audio after a user gesture: unlock it on the first one.
-    const unlock = () => {
+    // The same first gesture also switches to fullscreen, so the game fills the screen
+    // as soon as the player starts (browsers don't allow it before any interaction).
+    let firstGesture = true;
+    const unlock = (event: Event) => {
       this.audio.unlock();
       if (this.root.dataset.screen === 'menu') this.audio.setBed('menu');
+      const isEscape = event instanceof KeyboardEvent && event.key === 'Escape';
+      // Only once: if the player leaves fullscreen, don't pull them back in.
+      if (firstGesture && loadSettings().fullscreen && !isEscape) void enterFullscreen();
+      firstGesture = false;
     };
     document.addEventListener('pointerdown', unlock, { once: true });
     document.addEventListener('keydown', unlock, { once: true });
 
     document.addEventListener('keydown', (event) => {
-      if (event.code !== 'KeyM' || event.ctrlKey || event.metaKey || event.altKey) return;
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement)
         return;
-      this.toggleMute();
+      if (event.code === 'KeyM') this.toggleMute();
+      if (event.code === 'KeyF') void toggleFullscreen();
     });
   }
 
@@ -300,6 +333,14 @@ export class App {
           'Потвърждение, преди да заключиш.',
           () => {},
         ),
+        fullscreenSupported()
+          ? toggle(
+              'fullscreen',
+              '⛶ Цял екран при влизане',
+              'Играта минава на цял екран при първото кликване. Изход: Esc или F.',
+              (on) => void (on ? enterFullscreen() : undefined),
+            )
+          : null,
       ),
       actions: [{ label: 'Готово', variant: 'primary' }],
     });

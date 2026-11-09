@@ -131,6 +131,7 @@ export function rulesScreen(ctx: AppContext): Screen {
         h('li', null, ...kbd('W'), ' – вземи парите'),
         h('li', null, ...kbd('L'), ' – покажи стълбата (на телефон)'),
         h('li', null, ...kbd('M'), ' – звук вкл./изкл.'),
+        h('li', null, ...kbd('F'), ' – цял екран вкл./изкл.'),
       ),
     ),
   );
