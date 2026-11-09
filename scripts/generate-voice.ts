@@ -6,6 +6,7 @@
  *   npm run voice -- --only=lines   # just the host's lines (≈ 2 minutes)
  *   npm run voice -- --limit=5      # try a handful of requests first
  *   npm run voice -- --fast         # no throttling (paid S0 resources only)
+ *   npm run voice -- --retrim       # re-cut the recorded files into phrases (no Azure needed)
  *
  * Credentials come from AZURE_SPEECH_KEY and AZURE_SPEECH_REGION, either as environment
  * variables or in a `.env.local` file (git-ignored). The free F0 tier allows 20 requests a
@@ -16,8 +17,11 @@ import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync 
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
+import { MPEGDecoder } from 'mpg123-decoder';
+import { toSpeech } from '../src/audio/speech-text.ts';
 import type { VoiceIndex } from '../src/audio/voice-pack.ts';
 import { loadQuestionBank } from '../src/game/questions.ts';
+import { expectedSeconds, pad, segment, speechRegions } from './voice-segment.ts';
 import {
   buildPlan,
   buildSsml,
@@ -42,6 +46,8 @@ const DRY_RUN = args.has('dry-run');
 const FAST = args.has('fast');
 const LIMIT = Number(args.get('limit') ?? Infinity);
 const ONLY = args.get('only'); // "lines" | "questions"
+/** Re-cut the already recorded files (no Azure needed). */
+const RETRIM = args.has('retrim');
 
 /** F0 allows 20 requests per 60 s; keep a little margin. */
 const MIN_INTERVAL_MS = FAST ? 0 : 3300;
@@ -94,21 +100,62 @@ function prune(index: VoiceIndex, plan: Sprite[]): number {
     delete index.hashes[id];
     removed++;
   }
+  // Also drop phrases that are no longer in the plan (e.g. a line that was reworded).
+  const wantedClips = new Set(
+    plan.filter((s) => !s.question).flatMap((s) => s.items.map((i) => i.mark)),
+  );
   for (const [key, ref] of Object.entries(index.clips))
-    if (!index.sprites[ref[0]]) delete index.clips[key];
+    if (!index.sprites[ref[0]] || !wantedClips.has(key)) {
+      delete index.clips[key];
+      removed++;
+    }
   for (const [id, q] of Object.entries(index.questions))
     if (!index.sprites[q.sprite]) delete index.questions[id];
   return removed;
 }
 
-function record(
-  index: VoiceIndex,
+// ─── Cutting the sprite into phrases ─────────────────────────────────────────
+
+let decoder: MPEGDecoder | null = null;
+
+async function decodeMp3(data: Uint8Array): Promise<{ samples: Float32Array; sampleRate: number }> {
+  if (!decoder) {
+    decoder = new MPEGDecoder();
+    await decoder.ready;
+  } else {
+    await decoder.reset();
+  }
+  const { channelData, sampleRate } = decoder.decode(data);
+  return { samples: channelData[0] ?? new Float32Array(), sampleRate };
+}
+
+/**
+ * Where each phrase is, found in the audio itself (see voice-segment.ts).
+ * `hints` are rough start times (bookmarks). Returns null if the audio cannot be fitted.
+ */
+async function spansFromAudio(
   sprite: Sprite,
-  marks: Map<string, number>,
-  duration: number,
-): void {
-  // A sprite is recorded completely or not at all: this throws before anything is written.
-  const spans = resolveSpans(sprite, marks, duration);
+  audio: Uint8Array,
+  hints: ReadonlyMap<string, number>,
+): Promise<Map<string, [number, number]> | null> {
+  const { samples, sampleRate } = await decodeMp3(audio);
+  if (samples.length === 0) return null;
+  const duration = samples.length / sampleRate;
+  const items = [
+    ...sprite.items.map((item) => ({
+      hint: hints.get(item.mark),
+      expected: expectedSeconds(toSpeech(item.text)),
+    })),
+    { expected: 0.6 }, // the closing word ("Край."), cut off afterwards
+  ];
+  const raw = segment(speechRegions(samples, sampleRate), items);
+  if (!raw) return null;
+  const spans = pad(raw, duration).slice(0, -1);
+  if (spans.some(([s, e]) => e - s < 0.25)) return null;
+  return new Map(sprite.items.map((item, i) => [item.mark, spans[i]!]));
+}
+
+function record(index: VoiceIndex, sprite: Sprite, spans: Map<string, [number, number]>): void {
   const items = sprite.items;
   const span = (mark: string) => spans.get(mark)!;
 
@@ -216,6 +263,38 @@ async function withRetries<T>(fn: () => Promise<T>, label: string): Promise<T> {
 
 // ─── Main ────────────────────────────────────────────────────────────────────
 
+/** Re-cuts every recorded sprite from its audio file. Uses the old start times as hints. */
+async function retrim(plan: Sprite[], index: VoiceIndex): Promise<void> {
+  let ok = 0;
+  const failed: string[] = [];
+  for (const sprite of plan) {
+    const file = resolve(OUT, sprite.file);
+    if (index.hashes[sprite.id] !== spriteHash(sprite) || !existsSync(file)) continue;
+    const hints = new Map<string, number>();
+    for (const item of sprite.items) {
+      const old = sprite.question
+        ? item.mark === 'q'
+          ? index.questions[sprite.question.id]?.question
+          : index.questions[sprite.question.id]?.answers[Number(item.mark.slice(1))]
+        : index.clips[item.mark]?.slice(1);
+      if (old) hints.set(item.mark, Number(old[0]) + 0.03);
+    }
+    const spans = await spansFromAudio(sprite, new Uint8Array(readFileSync(file)), hints);
+    if (spans) {
+      record(index, sprite, spans);
+      ok++;
+    } else {
+      failed.push(sprite.id);
+    }
+  }
+  const stale = prune(index, plan);
+  writeIndex(index);
+  if (stale) console.log(`🧹 Премахнати остарели записи: ${stale}`);
+  console.log(
+    `✂️  Нарязани наново: ${ok}. Неуспешни: ${failed.length}${failed.length ? ` (${failed.join(', ')})` : ''}`,
+  );
+}
+
 async function main(): Promise<void> {
   const questionsDir = resolve(ROOT, 'public/questions');
   const bank = await loadQuestionBank('/', async (url) =>
@@ -247,6 +326,8 @@ async function main(): Promise<void> {
     if (example) console.log(`Пример (${example.id}):\n${buildSsml(example)}\n`);
     return;
   }
+
+  if (RETRIM) return retrim(plan, index);
 
   loadEnvFile();
   const key = process.env.AZURE_SPEECH_KEY;
@@ -282,10 +363,20 @@ async function main(): Promise<void> {
 
     try {
       const result = await withRetries(() => synthesize(buildSsml(sprite), key, region), sprite.id);
+      // Cut by the audio itself; Azure's bookmarks are only a fallback (they drift after numbers).
+      const hints = new Map(
+        sprite.items.map((i) => [i.mark, result.marks.get(`${i.mark}|s`)] as const),
+      );
+      const spans =
+        (await spansFromAudio(
+          sprite,
+          new Uint8Array(result.audio),
+          hints as Map<string, number>,
+        )) ?? resolveSpans(sprite, result.marks, result.duration);
       const file = resolve(OUT, sprite.file);
       mkdirSync(dirname(file), { recursive: true });
       writeFileSync(file, result.audio);
-      record(index, sprite, result.marks, result.duration);
+      record(index, sprite, spans);
       writeIndex(index);
       done++;
       const left = batch.length - done;

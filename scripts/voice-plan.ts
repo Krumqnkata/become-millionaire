@@ -170,8 +170,6 @@ export function buildSsml(sprite: Sprite): string {
 /** Bookmark offsets are exact, but MP3 decoding adds a few ms of delay – keep a margin. */
 const LEAD = 0.03;
 const TAIL = 0.12;
-/** Gap assumed between phrases when a bookmark is missing (pauses are ≥ 450 ms). */
-const GAP = 0.15;
 const round = (n: number) => Math.round(n * 1000) / 1000;
 
 /**
@@ -184,27 +182,25 @@ export function resolveSpans(
   marks: ReadonlyMap<string, number>,
   duration: number,
 ): Map<string, [number, number]> {
+  // Azure reports a bookmark at the start of the next spoken word. So "|s" is exactly where an
+  // item begins, while "|e" lands *after* the item's pause, on the next item (or the closing word).
+  // The item's speech therefore ends one pause before its "|e".
   const items = sprite.items;
   const spans = new Map<string, [number, number]>();
   items.forEach((item, i) => {
     const last = i === items.length - 1;
-    const prevEnd = i > 0 ? marks.get(`${items[i - 1]!.mark}|e`) : 0;
-    // After the last item comes its pause, then the closing word (bookmarked as TAIL_MARK).
-    const tail = marks.get(TAIL_MARK);
-    const nextStart = last
-      ? tail !== undefined
-        ? tail - item.pause / 1000 + GAP
-        : undefined
-      : marks.get(`${items[i + 1]!.mark}|s`);
-    const start =
-      marks.get(`${item.mark}|s`) ?? (prevEnd !== undefined ? prevEnd + GAP : undefined);
-    const end =
+    const pause = item.pause / 1000;
+    const nextWord =
       marks.get(`${item.mark}|e`) ??
-      (nextStart !== undefined
-        ? nextStart - GAP
+      (last ? marks.get(TAIL_MARK) : marks.get(`${items[i + 1]!.mark}|s`));
+    const prevNextWord = i > 0 ? marks.get(`${items[i - 1]!.mark}|e`) : 0;
+    const start = marks.get(`${item.mark}|s`) ?? prevNextWord;
+    const end =
+      nextWord !== undefined
+        ? nextWord - pause
         : last && duration > 0
-          ? duration - 1.2
-          : undefined);
+          ? duration - pause - 0.8 // the closing word is ≈ 0.8 s long
+          : undefined;
     if (start === undefined || end === undefined || end <= start)
       throw new Error(`missing bookmark "${item.mark}" in ${sprite.id}`);
     spans.set(item.mark, [

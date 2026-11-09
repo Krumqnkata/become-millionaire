@@ -39,6 +39,7 @@
     "eslint": "^10.14.0",
     "globals": "^17.14.0",
     "microsoft-cognitiveservices-speech-sdk": "^1.53.0",
+    "mpg123-decoder": "^1.0.3",
     "prettier": "^3.9.10",
     "tsx": "^4.23.15",
     "typescript": "~6.0.3",

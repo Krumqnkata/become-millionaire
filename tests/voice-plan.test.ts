@@ -122,23 +122,29 @@ describe('SSML', () => {
 
   it('places items even when Azure drops a bookmark', () => {
     const sprite = questionSprite(sample);
+    // Like Azure: an "|e" bookmark carries the time of the next word, i.e. the next "|s".
     const marks = new Map<string, number>([
       ['q|s', 0.1],
-      ['q|e', 2.0],
+      ['q|e', 2.8],
       ['a0|s', 2.8],
-      ['a0|e', 3.4],
+      ['a0|e', 3.9],
       ['a1|s', 3.9], // a1|e missing → next start
       ['a2|s', 5.0],
-      ['a2|e', 5.6],
-      ['a3|s', 6.1], // a3|e missing (the last one) → end of file
+      ['a2|e', 6.1],
+      ['a3|s', 6.1], // a3|e missing (the last one) → closing word or end of file
     ]);
     const spans = resolveSpans(sprite, marks, 8);
-    expect(spans.get('a1')).toEqual([3.87, 4.97]);
-    expect(spans.get('a3')).toEqual([6.07, 6.92]); // no tail mark → end of file − 1.2 s
-    // With the closing word's bookmark at 7.3 s and a 450 ms pause before it, speech ended ≈ 6.85 s.
+    // The question's 800 ms pause is cut off, plus a 120 ms safety tail.
+    expect(spans.get('q')).toEqual([0.07, 2.12]);
+    expect(spans.get('a1')).toEqual([3.87, 4.67]);
+    // No closing-word bookmark: end of file − pause − closing word.
+    expect(spans.get('a3')).toEqual([6.07, 6.87]);
+    // Closing word starts at 7.3 s; the 450 ms pause before it is not part of the answer.
     expect(resolveSpans(sprite, new Map([...marks, ['__tail', 7.3]]), 8).get('a3')).toEqual([
       6.07, 6.97,
     ]);
+    // Nothing overlaps the next item any more.
+    expect(spans.get('q')![1]).toBeLessThan(spans.get('a0')![0]);
     expect(() => resolveSpans(sprite, new Map(), 8)).toThrow(/missing bookmark/);
   });
 
